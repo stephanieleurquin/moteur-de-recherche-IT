@@ -430,6 +430,14 @@ def main():
 
     with tab2:
         afficher_google_search()
+        st.sidebar.markdown("---")
+with st.sidebar.expander("📜 Licence"):
+    st.markdown("""
+    **Assistant IT Pro**  
+    © 2026 Stéphanie Vanschoor 
+    Sous licence MIT - Utilisation libre  
+    [Voir la licence complète](https://github.com/stephanieleurquin/moteur-de-recherche-IT/blob/main/LICENSE)
+    """)
 
 if __name__ == "__main__":
     main()
