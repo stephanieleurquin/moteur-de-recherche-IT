@@ -12,20 +12,25 @@ from typing import List, Dict, Tuple
 DB = "assistant_it_ia.db"
 
 # ==========================
+# CODE DE VALIDATION ADSENSE (DOUBLE MÉTHODE)
+# ==========================
+st.markdown("""
+<!-- Balise Meta pour validation AdSense -->
+<meta name="google-adsense-account" content="ca-pub-1095625009769978">
+
+<!-- Script AdSense -->
+<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1095625009769978"
+     crossorigin="anonymous"></script>
+""", unsafe_allow_html=True)
+
+# ==========================
 # CONFIGURATION
 # ==========================
 st.set_page_config(
-    page_title="Assistant IT IA Pro + Google Search",
+    page_title="Assistant IT Pro + Google Search",
     page_icon="🤖",
     layout="wide"
 )
-
-# ==========================
-# BALISE META POUR VALIDATION ADSENSE
-# ==========================
-st.markdown("""
-<meta name="google-adsense-account" content="ca-pub-1095625009769978">
-""", unsafe_allow_html=True)
 
 # ==========================
 # STYLES CSS
@@ -564,5 +569,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-      
-      
