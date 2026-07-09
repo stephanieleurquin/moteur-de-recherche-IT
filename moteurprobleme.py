@@ -119,6 +119,26 @@ def init_db():
     if cur.fetchone()[0] == 0:
         donnees = [
             (
+    "Souris qui ne fonctionne pas",
+    "la souris ne répond plus, le curseur ne bouge pas",
+    "Problème de souris : piles usées, récepteur USB mal branché.",
+    "1️⃣ Changer les piles\n2️⃣ Rebrancher le récepteur USB\n3️⃣ Tester sur un autre port",
+    "La souris s'allume-t-elle ?",
+    "Périphériques",
+    1,
+    "souris,curseur,usb"
+),
+(
+    "Ordinateur qui s'éteint tout seul",
+    "le PC s'éteint soudainement, il redémarre sans raison",
+    "Problème d'alimentation ou surchauffe.",
+    "1️⃣ Vérifier la température\n2️⃣ Nettoyer les ventilateurs\n3️⃣ Tester une autre prise",
+    "Le PC chauffe-t-il ?",
+    "Matériel",
+    3,
+    "extinction,surchauffe,alimentation"
+),
+            (
                 "PC très lent",
                 "L'ordinateur est très lent, il rame, les programmes mettent du temps à s'ouvrir",
                 "Problème de performance : disque dur plein ou lent, trop de programmes au démarrage.",
