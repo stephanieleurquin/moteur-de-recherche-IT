@@ -32,6 +32,14 @@ st.markdown("""
     border-left: 5px solid #667eea;
     margin: 1rem 0;
 }
+.google-search-container {
+    background: white;
+    padding: 1.5rem;
+    border-radius: 15px;
+    border: 2px solid #e0e0e0;
+    margin: 1rem 0;
+    box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -92,7 +100,18 @@ def init_db():
              "1️⃣ Redémarrer la box\n2️⃣ Redémarrer le PC\n3️⃣ Réinstaller le pilote Wi-Fi",
              "Les autres appareils ont-ils internet ?",
              "Réseau", 2, "wifi,internet,connexion"),
-            # Tu peux ajouter d'autres pannes ici
+            ("Imprimante ne fonctionne pas",
+             "l'imprimante n'imprime pas, elle est hors ligne",
+             "Problème d'impression : pilote obsolète, papier coincé, connexion USB défectueuse.",
+             "1️⃣ Vérifier le papier\n2️⃣ Redémarrer l'imprimante\n3️⃣ Réinstaller le pilote",
+             "Le voyant de l'imprimante est-il allumé ?",
+             "Périphériques", 2, "imprimante,impression,papier"),
+            ("Oubli du mot de passe Windows",
+             "je ne peux plus me connecter à mon ordinateur",
+             "Problème de connexion : mot de passe oublié ou compte bloqué.",
+             "1️⃣ Utiliser le mode sans échec\n2️⃣ Réinitialiser le mot de passe\n3️⃣ Contacter l'admin",
+             "Avez-vous un compte administrateur ?",
+             "Sécurité", 3, "mot de passe,connexion,compte")
         ]
         cur.executemany("""
         INSERT INTO pannes (titre, description, diagnostic, procedure, questions, categorie, niveau, tags)
@@ -102,7 +121,7 @@ def init_db():
     con.close()
 
 # ==========================
-# MOTEUR DE RECHERCHE AMÉLIORÉ
+# MOTEUR DE RECHERCHE
 # ==========================
 class RechercheIAPro:
     def __init__(self):
@@ -129,30 +148,59 @@ class RechercheIAPro:
             texte = texte.replace(ancien, nouveau)
         return texte
 
-   def rechercher_ia(self, question, top_k=10):  # ← CHANGÉ
-    self.charger_base()
-    question = self.normaliser(question)
-    mots = re.findall(r"\w+", question)
+    def rechercher_ia(self, question, top_k=10):
+        self.charger_base()
+        question = self.normaliser(question)
+        mots = re.findall(r"\w+", question)
 
-    resultats = []
-    for _, panne in self.df.iterrows():
-        score = 0
-        titre = self.normaliser(panne["titre"])
-        tags = self.normaliser(panne["tags"])
+        resultats = []
+        for _, panne in self.df.iterrows():
+            score = 0
+            titre = self.normaliser(panne["titre"])
+            tags = self.normaliser(panne["tags"])
+            description = self.normaliser(panne["description"])
+            diagnostic = self.normaliser(panne["diagnostic"])
 
-        for mot in mots:
-            if len(mot) < 2:
-                continue
-            if mot in titre:
-                score += 10
-            if mot in tags:
-                score += 8
+            for mot in mots:
+                if len(mot) < 2:
+                    continue
+                if mot in titre:
+                    score += 10
+                if mot in tags:
+                    score += 8
+                if mot in description:
+                    score += 5
+                if mot in diagnostic:
+                    score += 5
 
-        if score > 0:
-            resultats.append((dict(panne), score))
+            if score > 0:
+                resultats.append((dict(panne), score))
 
-    resultats.sort(key=lambda x: x[1], reverse=True)
-    return resultats  # ← CHANGÉ (enlève le [:top_k])
+        resultats.sort(key=lambda x: x[1], reverse=True)
+        return resultats[:top_k]
+
+# ==========================
+# FONCTION POUR AFFICHER GOOGLE SEARCH
+# ==========================
+def afficher_google_search():
+    """Affiche la barre de recherche Google personnalisée"""
+    st.markdown("""
+    <div class="google-search-container">
+        <h3 style="margin: 0;">🔍 Recherche Google</h3>
+        <p style="color: #666; font-size: 0.9rem;">
+            Recherchez sur tout le web depuis votre assistant IT.
+        </p>
+    </div>
+    """, unsafe_allow_html=True)
+
+    google_code = """
+    <script async src="https://cse.google.com/cse.js?cx=70e26eb628d0e4736">
+    </script>
+    <div class="gcse-search"></div>
+    """
+    st.components.v1.html(google_code, height=400)
+
+# ==========================
 # INTERFACE PRINCIPALE
 # ==========================
 def main():
@@ -200,7 +248,7 @@ def main():
                         con.commit()
                         con.close()
                         st.success("✅ Panne ajoutée avec succès !")
-                        st.cache_data.clear()  # Force le rechargement
+                        st.cache_data.clear()
                         st.rerun()
                     else:
                         st.error("Le titre et la description sont obligatoires.")
@@ -237,20 +285,7 @@ def main():
                         st.caption(f"Tags : {r['tags']}")
 
     with tab2:
-        # Recherche Google
-        st.markdown("""
-        <div style="background:white; padding:1.5rem; border-radius:15px; border:2px solid #e0e0e0;">
-            <h3>🔍 Recherche Google</h3>
-            <p style="color:#666;">Recherchez sur tout le web depuis votre assistant IT.</p>
-        </div>
-        """, unsafe_allow_html=True)
-        google_code = """
-        <script async src="https://cse.google.com/cse.js?cx=70e26eb628d0e4736">
-        </script>
-        <div class="gcse-search"></div>
-        """
-        st.components.v1.html(google_code, height=400)
+        afficher_google_search()
 
 if __name__ == "__main__":
     main()
-      
