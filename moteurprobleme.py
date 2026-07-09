@@ -21,11 +21,10 @@ st.set_page_config(
 )
 
 # ==========================
-# CODE DE VALIDATION ADSENSE
+# BALISE META POUR VALIDATION ADSENSE
 # ==========================
 st.markdown("""
-<script async src="https://pagead2.googlesyndication.com/pagead/js/adsbygoogle.js?client=ca-pub-1095625009769978"
-     crossorigin="anonymous"></script>
+<meta name="google-adsense-account" content="ca-pub-1095625009769978">
 """, unsafe_allow_html=True)
 
 # ==========================
@@ -565,3 +564,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+      
+      
