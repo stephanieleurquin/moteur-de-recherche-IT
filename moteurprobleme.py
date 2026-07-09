@@ -439,7 +439,7 @@ with st.sidebar.expander("📜 Licence"):
     [Voir la licence complète](https://github.com/stephanieleurquin/moteur-de-recherche-IT/blob/main/LICENSE)
     """)
             # ===== AJOUT DU DISCLAIMER =====
-        st.warning("""
+    st.warning("""
         **⚠️ Avertissement**
         Les diagnostics fournis par cet outil sont fournis à titre indicatif.
         Ils ne remplacent pas l'avis d'un professionnel. L'utilisateur est seul responsable de l'application des procédures.
