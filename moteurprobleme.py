@@ -4,13 +4,10 @@ import pandas as pd
 import numpy as np
 import re
 from datetime import datetime
-
 from supabase import create_client
 
 DB = "assistant_it_ia.db"
-# ==========================
-# CONNEXION SUPABASE
-# ==========================
+
 # ==========================
 # CONNEXION SUPABASE
 # ==========================
@@ -56,16 +53,18 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+
 # ==========================
 # BASE DE DONNÉES
 # ==========================
 def connexion():
     return sqlite3.connect(DB)
 
+
 def init_db():
     con = connexion()
     cur = con.cursor()
-    
+
     # Supprime et recrée la table
     cur.execute("DROP TABLE IF EXISTS pannes")
     cur.execute("""
@@ -82,7 +81,7 @@ def init_db():
         date_ajout TIMESTAMP DEFAULT CURRENT_TIMESTAMP
     )
     """)
-    
+
     donnees = [
         # 1. PÉRIPHÉRIQUES
         ("Souris qui ne fonctionne pas",
@@ -91,35 +90,35 @@ def init_db():
          "1️⃣ Changer les piles\n2️⃣ Rebrancher le récepteur USB\n3️⃣ Tester sur un autre port\n4️⃣ Réinstaller le pilote",
          "La souris s'allume-t-elle ? Le récepteur est-il branché ?",
          "Périphériques", 1, "souris,curseur,usb,souris sans fil"),
-        
+
         ("Clavier qui ne répond pas",
          "les touches du clavier ne fonctionnent plus, impossible de taper",
          "Problème de clavier : câble débranché, pilote défectueux ou touche bloquée.",
          "1️⃣ Vérifier le câble USB\n2️⃣ Tester un autre port\n3️⃣ Redémarrer l'ordinateur\n4️⃣ Nettoyer le clavier",
          "Le clavier s'allume-t-il ? Avez-vous renversé un liquide ?",
          "Périphériques", 1, "clavier,touches,usb,écriture"),
-        
+
         ("Imprimante ne fonctionne pas",
          "l'imprimante n'imprime pas, elle est hors ligne ou affiche une erreur",
          "Problème d'impression : pilote obsolète, papier coincé, connexion USB défectueuse, ou cartouche vide.",
          "1️⃣ Vérifier le papier et les cartouches\n2️⃣ Redémarrer l'imprimante\n3️⃣ Réinstaller le pilote\n4️⃣ Vérifier la connexion",
          "Le voyant de l'imprimante est-il allumé ? Y a-t-il du papier ?",
          "Périphériques", 2, "imprimante,impression,papier,cartouche"),
-        
+
         ("Webcam ne fonctionne pas",
          "la webcam ne s'allume pas, l'image est noire ou pixelisée",
          "Problème de webcam : pilote manquant, autorisation non donnée, ou matériel défectueux.",
          "1️⃣ Vérifier les autorisations de l'application\n2️⃣ Réinstaller le pilote\n3️⃣ Tester avec une autre application\n4️⃣ Redémarrer",
          "La webcam est-elle branchée ? Avez-vous autorisé l'accès ?",
          "Périphériques", 2, "webcam,caméra,video,image"),
-        
+
         ("Microphone ne fonctionne pas",
          "le micro ne capte pas le son, personne ne m'entend",
          "Problème de microphone : pilote corrompu, paramètres audio incorrects, ou matériel défectueux.",
          "1️⃣ Vérifier les paramètres audio\n2️⃣ Tester avec un autre logiciel\n3️⃣ Réinstaller le pilote\n4️⃣ Vérifier le branchement",
          "Le micro est-il branché ? Est-il activé dans les paramètres ?",
          "Périphériques", 2, "micro,son,audio,parler"),
-        
+
         # 2. MATÉRIEL
         ("Ordinateur qui s'éteint tout seul",
          "le PC s'éteint soudainement, il redémarre sans raison",
@@ -127,28 +126,28 @@ def init_db():
          "1️⃣ Vérifier la température avec un logiciel\n2️⃣ Nettoyer les ventilateurs\n3️⃣ Tester une autre prise\n4️⃣ Vérifier l'alimentation",
          "Le PC chauffe-t-il ? Les ventilateurs tournent-ils ?",
          "Matériel", 3, "extinction,surchauffe,alimentation,ventilateur"),
-        
+
         ("Écran noir",
          "L'ordinateur démarre mais l'écran reste noir, aucun signal",
          "Problème d'affichage : câble défectueux, écran endommagé, ou carte graphique défaillante.",
          "1️⃣ Vérifier le câble HDMI ou DisplayPort\n2️⃣ Tester un autre écran\n3️⃣ Tester la RAM en la retirant et remettant\n4️⃣ Vérifier la carte graphique",
          "Le PC s'allume-t-il normalement ? Y a-t-il des bips ?",
          "Matériel", 3, "ecran noir,image,affichage,hdmi"),
-        
+
         ("Ordinateur qui redémarre en boucle",
          "le PC redémarre sans arrêt, impossible d'accéder à Windows",
          "Problème de démarrage : disque dur défectueux, mémoire RAM défaillante, ou système corrompu.",
          "1️⃣ Démarrer en mode sans échec\n2️⃣ Vérifier les disques durs\n3️⃣ Tester la RAM\n4️⃣ Réparer le système",
          "Entendez-vous des bips au démarrage ?",
          "Matériel", 3, "redémarrage,boucle,démarrage,ram"),
-        
+
         ("Ventilateur qui fait du bruit",
          "le ventilateur de l'ordinateur fait un bruit fort et continu",
          "Problème de ventilateur : accumulation de poussière, roulement usé, ou ventilation bloquée.",
          "1️⃣ Nettoyer le ventilateur avec de l'air comprimé\n2️⃣ Vérifier les obstacles\n3️⃣ Remplacer le ventilateur si nécessaire",
          "Depuis quand le bruit est-il apparu ?",
          "Matériel", 2, "ventilateur,bruit,nettoyage,poussière"),
-        
+
         # 3. PERFORMANCE
         ("PC très lent",
          "L'ordinateur est très lent, il rame, les programmes mettent du temps à s'ouvrir",
@@ -156,28 +155,28 @@ def init_db():
          "1️⃣ Ouvrir le Gestionnaire des Tâches\n2️⃣ Voir l'utilisation du CPU et de la RAM\n3️⃣ Désactiver les programmes inutiles au démarrage\n4️⃣ Nettoyer le disque\n5️⃣ Ajouter de la RAM",
          "Depuis quand l'ordinateur est-il lent ? Combien de RAM avez-vous ?",
          "Performance", 2, "lent,rame,performance,rapide"),
-        
+
         ("Disque dur plein",
          "le disque dur est plein, impossible d'installer ou de sauvegarder des fichiers",
          "Problème de stockage : disque saturé, fichiers temporaires accumulés, ou téléchargements excessifs.",
          "1️⃣ Supprimer les fichiers inutiles\n2️⃣ Vider la corbeille\n3️⃣ Désinstaller les programmes inutilisés\n4️⃣ Défragmenter le disque\n5️⃣ Ajouter un disque externe",
          "Quelle est la capacité de votre disque ? Que stockez-vous ?",
          "Performance", 2, "disque,stockage,mémoire,plein"),
-        
+
         ("Ordinateur qui freeze",
          "l'ordinateur se bloque complètement, plus rien ne répond",
          "Problème de freeze : RAM insuffisante, disque dur lent, ou logiciel en conflit.",
          "1️⃣ Forcer l'arrêt avec le bouton power\n2️⃣ Redémarrer en mode sans échec\n3️⃣ Vérifier les logiciels en conflit\n4️⃣ Augmenter la RAM",
          "Que faisiez-vous avant le blocage ?",
          "Performance", 3, "freeze,bloque,coincé,ram"),
-        
+
         ("Écran qui clignote",
          "l'écran clignote, des lignes apparaissent et disparaissent",
          "Problème d'affichage : pilote graphique défectueux, câble endommagé, ou écran défaillant.",
          "1️⃣ Mettre à jour le pilote graphique\n2️⃣ Vérifier le câble\n3️⃣ Tester un autre écran\n4️⃣ Modifier la fréquence de rafraîchissement",
          "Le clignotement est-il constant ?",
          "Performance", 2, "clignote,écran,lignes,affichage"),
-        
+
         # 4. RÉSEAU
         ("Wi-Fi ne fonctionne pas",
          "le wifi ne fonctionne plus, internet est coupé",
@@ -185,28 +184,28 @@ def init_db():
          "1️⃣ Redémarrer la box\n2️⃣ Redémarrer le PC\n3️⃣ Réinstaller le pilote Wi-Fi\n4️⃣ Vérifier le mot de passe",
          "Les autres appareils ont-ils internet ?",
          "Réseau", 2, "wifi,internet,connexion,box"),
-        
+
         ("Connexion Ethernet ne fonctionne pas",
          "le câble réseau est branché mais pas d'internet",
          "Problème Ethernet : câble défectueux, pilote réseau corrompu, ou paramètres IP incorrects.",
          "1️⃣ Vérifier le câble Ethernet\n2️⃣ Redémarrer le routeur\n3️⃣ Réinstaller le pilote réseau\n4️⃣ Vérifier les paramètres IP",
          "Le voyant du câble réseau est-il allumé ?",
          "Réseau", 2, "ethernet,cable,réseau,internet"),
-        
+
         ("Internet très lent",
          "la connexion internet est très lente, les pages mettent du temps à charger",
          "Problème de bande passante : trop d'appareils connectés, box défectueuse, ou fournisseur d'accès limité.",
          "1️⃣ Redémarrer la box\n2️⃣ Vérifier le nombre d'appareils connectés\n3️⃣ Tester avec un câble\n4️⃣ Contacter le FAI",
          "Combien d'appareils sont connectés ?",
          "Réseau", 2, "lent,internet,connexion,debit"),
-        
+
         ("Impossible de se connecter au VPN",
          "je n'arrive pas à me connecter au VPN du travail",
          "Problème VPN : identifiants incorrects, serveur VPN indisponible, ou pare-feu bloquant.",
          "1️⃣ Vérifier les identifiants\n2️⃣ Redémarrer le client VPN\n3️⃣ Vérifier le pare-feu\n4️⃣ Contacter le support IT",
          "Avez-vous changé votre mot de passe récemment ?",
          "Réseau", 3, "vpn,connexion,sécurité,travail"),
-        
+
         # 5. LOGICIEL
         ("Windows ne démarre pas",
          "impossible de démarrer Windows, écran noir avec message d'erreur",
@@ -214,35 +213,35 @@ def init_db():
          "1️⃣ Démarrer en mode sans échec\n2️⃣ Utiliser la restauration du système\n3️⃣ Réparer avec une clé USB bootable\n4️⃣ Réinstaller Windows",
          "Quel message d'erreur s'affiche ?",
          "Logiciel", 4, "windows,démarrage,systeme,erreur"),
-        
+
         ("Logiciel qui ne s'installe pas",
          "je n'arrive pas à installer un logiciel, message d'erreur",
          "Problème d'installation : espace insuffisant, antivirus bloquant, ou fichier corrompu.",
          "1️⃣ Vérifier l'espace disque\n2️⃣ Désactiver l'antivirus temporairement\n3️⃣ Télécharger à nouveau le fichier\n4️⃣ Lancer en tant qu'administrateur",
          "Quel message d'erreur s'affiche ?",
          "Logiciel", 3, "installation,logiciel,erreur,espace"),
-        
+
         ("Oubli du mot de passe Windows",
          "je ne peux plus me connecter à mon ordinateur, mot de passe oublié",
          "Problème de connexion : mot de passe oublié ou compte bloqué après plusieurs tentatives.",
          "1️⃣ Utiliser le mode sans échec\n2️⃣ Réinitialiser le mot de passe avec le compte administrateur\n3️⃣ Utiliser une clé de réinitialisation\n4️⃣ Contacter l'administrateur",
          "Avez-vous un compte administrateur ?",
          "Sécurité", 3, "mot de passe,connexion,compte,oublie"),
-        
+
         ("Virus ou malware détecté",
          "l'antivirus a détecté un virus, l'ordinateur est infecté",
          "Problème de sécurité : virus, malware, ou logiciel espion sur l'ordinateur.",
          "1️⃣ Lancer une analyse antivirus complète\n2️⃣ Utiliser un outil de suppression de malware\n3️⃣ Redémarrer en mode sans échec\n4️⃣ Réinstaller le système si nécessaire",
          "Depuis quand avez-vous ce problème ?",
          "Logiciel", 4, "virus,malware,sécurité,antivirus"),
-        
+
         ("Impossible d'ouvrir un fichier",
          "je n'arrive pas à ouvrir un fichier, extension non reconnue",
          "Problème d'extension : logiciel manquant, fichier corrompu, ou erreur de compatibilité.",
          "1️⃣ Vérifier l'extension du fichier\n2️⃣ Installer le logiciel approprié\n3️⃣ Tester avec un autre programme\n4️⃣ Réparer le fichier",
          "Quelle est l'extension du fichier ?",
          "Logiciel", 1, "fichier,extension,ouvrir,compatibilité"),
-        
+
         # 6. SÉCURITÉ
         ("Compte utilisateur bloqué",
          "mon compte est bloqué, impossible de me connecter",
@@ -250,14 +249,14 @@ def init_db():
          "1️⃣ Attendre 30 minutes\n2️⃣ Réinitialiser le mot de passe\n3️⃣ Contacter l'administrateur\n4️⃣ Vérifier les politiques de sécurité",
          "Avez-vous tenté de vous connecter plusieurs fois ?",
          "Sécurité", 3, "compte,bloqué,connexion,utilisateur"),
-        
+
         ("Pare-feu bloquant",
          "le pare-feu bloque tout, impossible d'accéder à internet",
          "Problème de pare-feu : configuration incorrecte, règle bloquante, ou logiciel tiers.",
          "1️⃣ Vérifier les règles du pare-feu\n2️⃣ Désactiver temporairement\n3️⃣ Ajouter une exception\n4️⃣ Réinitialiser le pare-feu",
          "Quand avez-vous modifié le pare-feu ?",
          "Sécurité", 2, "parefeu,bloqué,sécurité,regle"),
-        
+
         ("Email compromis",
          "j'ai reçu un email suspect, mon compte a peut-être été piraté",
          "Problème de sécurité : compte compromis, phishing, ou mot de passe faible.",
@@ -265,14 +264,15 @@ def init_db():
          "Avez-vous cliqué sur un lien suspect ?",
          "Sécurité", 4, "email,compromis,piratage,sécurité"),
     ]
-    
+
     cur.executemany("""
     INSERT INTO pannes (titre, description, diagnostic, procedure, questions, categorie, niveau, tags)
     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """, donnees)
-    
+
     con.commit()
     con.close()
+
 
 # ==========================
 # MOTEUR DE RECHERCHE
@@ -333,6 +333,7 @@ class RechercheIAPro:
         resultats.sort(key=lambda x: x[1], reverse=True)
         return resultats[:top_k]
 
+
 # ==========================
 # FONCTION POUR AFFICHER GOOGLE SEARCH
 # ==========================
@@ -357,20 +358,59 @@ def afficher_google_search():
 # ==========================
 # AUTHENTIFICATION UTILISATEUR
 # ==========================
+# ==========================
+# AUTHENTIFICATION UTILISATEUR
+# ==========================
 
 def afficher_auth():
 
     st.sidebar.markdown("## 👤 Compte utilisateur")
 
+    # Création de la session
     if "user" not in st.session_state:
         st.session_state.user = None
 
+
+    # ==========================
+    # UTILISATEUR CONNECTÉ
+    # ==========================
+
+    if st.session_state.user:
+
+        st.sidebar.success(
+            f"Connecté : {st.session_state.user.email}"
+        )
+
+        if st.sidebar.button("🚪 Déconnexion"):
+
+            try:
+                supabase.auth.sign_out()
+                st.session_state.user = None
+                st.rerun()
+
+            except Exception as e:
+                st.sidebar.error(str(e))
+
+        return
+
+
+    # ==========================
+    # CONNEXION / INSCRIPTION
+    # ==========================
+
     choix = st.sidebar.radio(
-        "Choisir une action",
-        ["Connexion", "Créer un compte"]
+        "Action",
+        [
+            "Connexion",
+            "Créer un compte"
+        ]
     )
 
-    email = st.sidebar.text_input("Email")
+
+    email = st.sidebar.text_input(
+        "Email"
+    )
+
 
     password = st.sidebar.text_input(
         "Mot de passe",
@@ -378,59 +418,115 @@ def afficher_auth():
     )
 
 
+    # ==========================
+    # CREATION COMPTE
+    # ==========================
+
     if choix == "Créer un compte":
 
-        if st.sidebar.button("Créer mon compte"):
+        if st.sidebar.button(
+            "Créer mon compte"
+        ):
+
+            if email == "" or password == "":
+                st.sidebar.warning(
+                    "Veuillez remplir tous les champs"
+                )
+                return
+
 
             try:
-                supabase.auth.sign_up({
-                    "email": email,
-                    "password": password
-                })
 
-                st.sidebar.success(
-                    "Compte créé ! Vérifiez votre email."
+                resultat = supabase.auth.sign_up(
+                    {
+                        "email": email,
+                        "password": password
+                    }
                 )
 
-            except Exception as e:
-                st.sidebar.error(str(e))
 
+                st.sidebar.success(
+                    "Compte créé ✅ Vérifiez votre email."
+                )
+
+
+            except Exception as e:
+
+                st.sidebar.exception(e)
+
+
+
+    # ==========================
+    # CONNEXION
+    # ==========================
 
     if choix == "Connexion":
 
-        if st.sidebar.button("Se connecter"):
+        if st.sidebar.button(
+            "Se connecter"
+        ):
+
+            if email == "" or password == "":
+
+                st.sidebar.warning(
+                    "Email et mot de passe obligatoires"
+                )
+
+                return
+
 
             try:
-                resultat = supabase.auth.sign_in_with_password({
-                    "email": email,
-                    "password": password
-                })
 
-                st.session_state.user = resultat.user
-
-                st.sidebar.success(
-                    "Connexion réussie ✅"
+                resultat = supabase.auth.sign_in_with_password(
+                    {
+                        "email": email,
+                        "password": password
+                    }
                 )
+
+
+                if resultat.user:
+
+                    st.session_state.user = resultat.user
+
+                    st.sidebar.success(
+                        "Connexion réussie ✅"
+                    )
+
+                    st.rerun()
+
+
+                else:
+
+                    st.sidebar.error(
+                        "Utilisateur non trouvé"
+                    )
+
 
             except Exception as e:
+
                 st.sidebar.error(
-                    "Erreur de connexion : " + str(e)
+                    "Erreur Supabase :"
                 )
+
+                st.sidebar.exception(e)
+
+
+
+
+
+
 
 # ==========================
 # INTERFACE PRINCIPALE
 # ==========================
 def main():
     init_db()
-    
-   
 
     afficher_auth()
-    
+
     if 'recherche_pro' not in st.session_state:
         st.session_state.recherche_pro = RechercheIAPro()
-    
-   
 
     with st.sidebar:
         st.markdown("### 🤖 Assistant IT Pro")
@@ -462,7 +558,9 @@ def main():
                 diagnostic = st.text_area("Diagnostic")
                 procedure = st.text_area("Procédure")
                 questions = st.text_input("Questions à poser")
-                categorie = st.selectbox("Catégorie", ["Matériel", "Logiciel", "Réseau", "Performance", "Périphériques", "Sécurité", "Autre"])
+                categorie = st.selectbox("Catégorie",
+                                         ["Matériel", "Logiciel", "Réseau", "Performance", "Périphériques", "Sécurité",
+                                          "Autre"])
                 niveau = st.slider("Niveau de difficulté", 1, 5, 2)
                 tags = st.text_input("Tags (séparés par des virgules)")
                 soumettre = st.form_submit_button("Ajouter")
@@ -503,8 +601,8 @@ def main():
             else:
                 st.success(f"🔎 {len(resultats)} diagnostic(s) trouvé(s)")
                 for i, (r, s) in enumerate(resultats, 1):
-                    with st.expander(f"{i}. {r['titre']} (Pertinence : {s} points)", expanded=(i==1)):
-                        st.markdown(f"**Catégorie :** {r['categorie']}  |  **Niveau :** {'⭐'*r['niveau']}")
+                    with st.expander(f"{i}. {r['titre']} (Pertinence : {s} points)", expanded=(i == 1)):
+                        st.markdown(f"**Catégorie :** {r['categorie']}  |  **Niveau :** {'⭐' * r['niveau']}")
                         st.markdown(f"**Diagnostic :**\n{r['diagnostic']}")
                         st.markdown(f"**Procédure :**\n{r['procedure']}")
                         if r['questions']:
@@ -514,6 +612,8 @@ def main():
     with tab2:
         afficher_google_search()
         st.sidebar.markdown("---")
+
+
 with st.sidebar.expander("📜 Licence"):
     st.markdown("""
     **Assistant IT Pro**  
@@ -521,7 +621,7 @@ with st.sidebar.expander("📜 Licence"):
     Sous licence MIT - Utilisation libre  
     [Voir la licence complète](https://github.com/stephanieleurquin/moteur-de-recherche-IT/blob/main/LICENSE)
     """)
-            # ===== AJOUT DU DISCLAIMER =====
+    # ===== AJOUT DU DISCLAIMER =====
     st.warning("""
         **⚠️ Avertissement**
         Les diagnostics fournis par cet outil sont fournis à titre indicatif.
