@@ -8,6 +8,14 @@ from datetime import datetime
 from supabase import create_client
 
 DB = "assistant_it_ia.db"
+# ==========================
+# CONNEXION SUPABASE
+# ==========================
+
+supabase = create_client(
+    st.secrets["SUPABASE_URL"],
+    st.secrets["SUPABASE_KEY"]
+)
 
 # ==========================
 # CONFIGURATION
