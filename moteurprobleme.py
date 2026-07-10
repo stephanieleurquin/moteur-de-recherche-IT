@@ -1,17 +1,18 @@
-# =====================================================
-# ASSISTANT IT PRO - MOTEUR DE RECHERCHE
-# PARTIE 1/3
-# =====================================================
+# ==========================================================
+# ASSISTANT IT PRO - MOTEUR DE RECHERCHE MONETISABLE
+# BLOC 1/4
+# ==========================================================
 
 import streamlit as st
 import sqlite3
 import pandas as pd
 import re
+from datetime import datetime
 
 
-# =====================================================
-# CONFIGURATION
-# =====================================================
+# ==========================================================
+# CONFIGURATION STREAMLIT
+# ==========================================================
 
 st.set_page_config(
     page_title="Assistant IT Pro",
@@ -20,13 +21,12 @@ st.set_page_config(
 )
 
 
-DB = "assistant_it_ia.db"
+DB = "assistant_it_pro.db"
 
 
-
-# =====================================================
-# SUPABASE
-# =====================================================
+# ==========================================================
+# CONNEXION SUPABASE
+# ==========================================================
 
 try:
 
@@ -38,6 +38,7 @@ try:
         st.secrets["SUPABASE_KEY"]
     )
 
+
     SUPABASE_OK = True
 
 
@@ -46,17 +47,50 @@ except Exception as e:
     supabase = None
     SUPABASE_OK = False
 
-    st.warning(
-        "Supabase non disponible : mode local activé"
-    )
+
+
+# ==========================================================
+# STYLE
+# ==========================================================
+
+st.markdown(
+"""
+<style>
+
+.main-title {
+
+font-size:45px;
+font-weight:800;
+text-align:center;
+
+}
+
+
+.box {
+
+padding:20px;
+border-radius:15px;
+background:#111827;
+color:white;
+margin:10px;
+
+}
+
+
+</style>
+
+""",
+unsafe_allow_html=True
+)
 
 
 
-# =====================================================
-# BASE SQLITE
-# =====================================================
+# ==========================================================
+# BASE LOCALE
+# ==========================================================
 
-def connexion():
+
+def db():
 
     return sqlite3.connect(DB)
 
@@ -64,194 +98,46 @@ def connexion():
 
 def init_db():
 
-    con = connexion()
+
+    con = db()
 
     cur = con.cursor()
+
 
 
     cur.execute("""
-    CREATE TABLE IF NOT EXISTS pannes (
+    CREATE TABLE IF NOT EXISTS utilisateurs
 
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
+    (
 
-        titre TEXT,
+    email TEXT PRIMARY KEY,
 
-        description TEXT,
+    recherches INTEGER DEFAULT 0,
 
-        diagnostic TEXT,
-
-        procedure TEXT,
-
-        questions TEXT,
-
-        categorie TEXT,
-
-        niveau INTEGER,
-
-        tags TEXT
+    premium INTEGER DEFAULT 0
 
     )
+
     """)
 
 
-    con.commit()
 
-    con.close()
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS historique
 
-
-
-# =====================================================
-# DONNEES DE BASE
-# =====================================================
-
-def remplir_base():
-
-
-    con = connexion()
-
-    cur = con.cursor()
-
-
-    cur.execute(
-        "SELECT COUNT(*) FROM pannes"
-    )
-
-
-    total = cur.fetchone()[0]
-
-
-    if total > 0:
-
-        con.close()
-        return
-
-
-
-    donnees = [
-
-
-        (
-        "PC très lent",
-
-        "ordinateur lent rame programmes longs",
-
-        "Manque de ressources, disque lent ou trop de programmes",
-
-        """
-1 Vérifier le gestionnaire des tâches
-2 Désactiver les programmes inutiles
-3 Nettoyer le disque
-4 Vérifier la RAM
-        """,
-
-        "Depuis quand le problème existe ?",
-
-        "Performance",
-
-        2,
-
-        "lent,rame,ordinateur,performance"
-        ),
-
-
-
-        (
-        "WiFi impossible",
-
-        "wifi internet connexion réseau impossible",
-
-        "Problème réseau, box ou pilote wifi",
-
-        """
-1 Redémarrer la box
-2 Redémarrer le PC
-3 Vérifier le pilote wifi
-4 Tester un autre appareil
-        """,
-
-        "Les autres appareils ont-ils internet ?",
-
-        "Réseau",
-
-        2,
-
-        "wifi,internet,réseau,connexion"
-        ),
-
-
-
-        (
-        "Ecran noir",
-
-        "ordinateur démarre écran noir aucune image",
-
-        "Problème écran câble RAM ou carte graphique",
-
-        """
-1 Vérifier câble HDMI
-2 Tester un autre écran
-3 Vérifier la RAM
-        """,
-
-        "Le PC démarre-t-il ?",
-
-        "Matériel",
-
-        3,
-
-        "écran,noir,image,graphique"
-        ),
-
-
-
-        (
-        "Mot de passe oublié",
-
-        "impossible connexion compte mot passe",
-
-        "Compte utilisateur bloqué",
-
-        """
-1 Vérifier le compte
-2 Réinitialiser le mot de passe
-3 Contacter administrateur
-        """,
-
-        "Compte administrateur disponible ?",
-
-        "Sécurité",
-
-        3,
-
-        "motdepasse,connexion,compte"
-        )
-
-    ]
-
-
-
-    cur.executemany(
-
-    """
-    INSERT INTO pannes
     (
-    titre,
-    description,
-    diagnostic,
-    procedure,
-    questions,
-    categorie,
-    niveau,
-    tags
-    )
 
-    VALUES (?,?,?,?,?,?,?,?)
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
 
-    """,
+    email TEXT,
 
-    donnees
+    question TEXT,
+
+    date TEXT
 
     )
+
+    """)
 
 
 
@@ -259,223 +145,76 @@ def remplir_base():
 
     con.close()
 
-  
-# =====================================================
-# ASSISTANT IT PRO
-# PARTIE 2/3
-# MOTEUR DE RECHERCHE + AUTHENTIFICATION
-# =====================================================
 
 
+# ==========================================================
+# SESSION
+# ==========================================================
 
-# =====================================================
-# MOTEUR DE RECHERCHE
-# =====================================================
 
-class RechercheIAPro:
-
-
-    def __init__(self):
-
-        self.df = None
-
-
-
-    def charger_base(self):
-
-        if self.df is None:
-
-            con = connexion()
-
-            self.df = pd.read_sql_query(
-                "SELECT * FROM pannes",
-                con
-            )
-
-            con.close()
-
-
-
-    def normaliser(self, texte):
-
-        texte = str(texte).lower()
-
-
-        corrections = {
-
-            "ordi":"ordinateur",
-            "pc":"ordinateur",
-            "rame":"lent",
-            "wiffi":"wifi",
-            "wify":"wifi",
-            "bloque":"freeze"
-
-        }
-
-
-        for ancien,nouveau in corrections.items():
-
-            texte = texte.replace(
-                ancien,
-                nouveau
-            )
-
-
-        return texte
-
-
-
-    def rechercher(self, question):
-
-
-        self.charger_base()
-
-
-        question = self.normaliser(question)
-
-
-        mots = re.findall(
-            r"\w+",
-            question
-        )
-
-
-        resultats=[]
-
-
-
-        for _, panne in self.df.iterrows():
-
-
-            score=0
-
-
-            champs = [
-
-                panne["titre"],
-                panne["description"],
-                panne["diagnostic"],
-                panne["tags"]
-
-            ]
-
-
-            texte = self.normaliser(
-                " ".join(champs)
-            )
-
-
-
-            for mot in mots:
-
-
-                if len(mot)<2:
-
-                    continue
-
-
-
-                if mot in texte:
-
-                    score += 5
-
-
-
-                if mot in self.normaliser(panne["titre"]):
-
-                    score += 10
-
-
-
-            if score>0:
-
-                resultats.append(
-
-                    (
-                        dict(panne),
-                        score
-                    )
-
-                )
-
-
-
-        resultats.sort(
-
-            key=lambda x:x[1],
-
-            reverse=True
-
-        )
-
-
-        return resultats[:10]
-
-
-
-
-
-# =====================================================
-# AUTHENTIFICATION SUPABASE
-# =====================================================
-
-
-def afficher_auth():
-
-
-    st.sidebar.markdown(
-        "## 👤 Compte utilisateur"
-    )
-
-
-
-    if not SUPABASE_OK:
-
-
-        st.sidebar.info(
-            "Connexion désactivée - mode local"
-        )
-
-        return
-
-
+def init_session():
 
 
     if "user" not in st.session_state:
 
-        st.session_state.user=None
+        st.session_state.user = None
 
 
 
+    if "recherches" not in st.session_state:
 
-    # -----------------------------
-    # UTILISATEUR CONNECTE
-    # -----------------------------
+        st.session_state.recherches = 0
 
+
+
+# ==========================================================
+# AUTHENTIFICATION
+# ==========================================================
+
+
+def authentification():
+
+    st.sidebar.markdown(
+        "## 👤 Compte"
+    )
+
+
+    init_session()
+
+
+
+    # utilisateur connecté
 
     if st.session_state.user:
 
 
+        email = st.session_state.user.email
+
+
         st.sidebar.success(
-
-            "Connecté : "
-            +
-            st.session_state.user.email
-
+            f"Connecté : {email}"
         )
 
 
 
         if st.sidebar.button(
-            "Déconnexion"
+            "🚪 Déconnexion"
         ):
 
 
-            supabase.auth.sign_out()
+            try:
+
+                supabase.auth.sign_out()
+
+            except:
+
+                pass
 
 
-            st.session_state.user=None
 
+            st.session_state.user = None
+
+            st.session_state.recherches = 0
 
             st.rerun()
 
@@ -486,9 +225,16 @@ def afficher_auth():
 
 
 
-    # -----------------------------
-    # FORMULAIRE
-    # -----------------------------
+    if not SUPABASE_OK:
+
+
+        st.sidebar.error(
+            "Supabase non connecté"
+        )
+
+        return
+
+
 
 
     choix = st.sidebar.radio(
@@ -509,6 +255,7 @@ def afficher_auth():
     )
 
 
+
     password = st.sidebar.text_input(
 
         "Mot de passe",
@@ -520,8 +267,8 @@ def afficher_auth():
 
 
 
+    if choix == "Créer un compte":
 
-    if choix=="Créer un compte":
 
 
         if st.sidebar.button(
@@ -532,22 +279,19 @@ def afficher_auth():
             try:
 
 
-                supabase.auth.sign_up(
-
-                    {
+                supabase.auth.sign_up({
 
                     "email":email,
 
                     "password":password
 
-                    }
+                })
 
-                )
 
 
                 st.sidebar.success(
 
-                    "Compte créé. Vérifiez votre email."
+                    "Compte créé ✅ Vérifiez votre email"
 
                 )
 
@@ -563,8 +307,8 @@ def afficher_auth():
 
 
 
+    if choix == "Connexion":
 
-    if choix=="Connexion":
 
 
         if st.sidebar.button(
@@ -572,31 +316,25 @@ def afficher_auth():
         ):
 
 
+
             try:
 
 
-                resultat = supabase.auth.sign_in_with_password(
-
-                    {
+                resultat = supabase.auth.sign_in_with_password({
 
                     "email":email,
 
                     "password":password
 
-                    }
-
-                )
+                })
 
 
 
                 st.session_state.user = resultat.user
 
 
-
                 st.sidebar.success(
-
-                    "Connexion réussie"
-
+                    "Connexion réussie ✅"
                 )
 
 
@@ -608,121 +346,376 @@ def afficher_auth():
 
 
                 st.sidebar.error(
-
-                    "Erreur connexion : "
-                    +
                     str(e)
-
                 )
-# =====================================================
-# ASSISTANT IT PRO
-# PARTIE 3/3
-# INTERFACE STREAMLIT
-# =====================================================
 
 
-# =====================================================
-# STYLE
-# =====================================================
+
+# ==========================================================
+# DEMARRAGE
+# ==========================================================
+
+
+init_db()
+
+authentification()
+
 
 st.markdown(
 """
-<style>
-
-.main-title {
-
-font-size:40px;
-font-weight:bold;
-text-align:center;
-
-}
-
-
-.result {
-
-padding:20px;
-border-radius:15px;
-background:#f5f5f5;
-margin-bottom:15px;
-
-}
-
-</style>
-
+<div class="main-title">
+🤖 Assistant Dépannage IT Pro
+</div>
 """,
 
 unsafe_allow_html=True
 )
+# ==========================================================
+# BLOC 2/4
+# BASE DE CONNAISSANCES + MOTEUR DE RECHERCHE IT
+# ==========================================================
+
+
+def charger_base_it():
+
+    return [
+
+        {
+            "titre": "PC très lent",
+
+            "categorie": "Performance",
+
+            "symptomes":
+            "ordinateur lent rame bloque programmes longs",
+
+            "diagnostic":
+            "Le problème peut venir du disque, de la mémoire RAM ou de trop nombreux logiciels au démarrage.",
+
+            "solution":
+            """
+✅ Vérifier le gestionnaire des tâches
+✅ Contrôler l'utilisation CPU et RAM
+✅ Désactiver les programmes inutiles au démarrage
+✅ Nettoyer le disque
+✅ Vérifier l'état du disque dur
+            """,
+
+            "tags":
+            "lent rame vitesse performance ordinateur pc"
+        },
+
+
+        {
+            "titre": "Impossible de se connecter au Wi-Fi",
+
+            "categorie": "Réseau",
+
+            "symptomes":
+            "wifi internet connexion réseau box",
+
+            "diagnostic":
+            "Le problème peut venir de la box, du pilote Wi-Fi ou de la carte réseau.",
+
+            "solution":
+            """
+✅ Redémarrer la box internet
+✅ Redémarrer l'ordinateur
+✅ Vérifier le mode avion
+✅ Réinstaller le pilote Wi-Fi
+✅ Tester avec un autre appareil
+            """,
+
+            "tags":
+            "wifi internet réseau connexion box"
+        },
+
+
+        {
+            "titre": "Écran noir",
+
+            "categorie": "Matériel",
+
+            "symptomes":
+            "écran noir aucun affichage pc démarre",
+
+            "diagnostic":
+            "Possible problème de câble vidéo, écran, RAM ou carte graphique.",
+
+            "solution":
+            """
+✅ Vérifier câble HDMI ou DisplayPort
+✅ Tester un autre écran
+✅ Retirer et remettre la RAM
+✅ Vérifier la carte graphique
+            """,
+
+            "tags":
+            "écran noir image affichage hdmi gpu"
+        },
+
+
+        {
+            "titre": "Windows ne démarre plus",
+
+            "categorie": "Système",
+
+            "symptomes":
+            "windows démarrage erreur écran noir redémarrage",
+
+            "diagnostic":
+            "Fichiers système corrompus, disque défectueux ou problème de mise à jour.",
+
+            "solution":
+            """
+✅ Démarrer en mode sans échec
+✅ Utiliser la réparation Windows
+✅ Vérifier le disque
+✅ Restaurer le système
+            """,
+
+            "tags":
+            "windows démarrage erreur réparation système"
+        },
+
+
+        {
+            "titre": "Virus ou malware détecté",
+
+            "categorie": "Sécurité",
+
+            "symptomes":
+            "virus malware publicité piratage ordinateur infecté",
+
+            "diagnostic":
+            "Présence possible d'un logiciel malveillant.",
+
+            "solution":
+            """
+✅ Faire une analyse antivirus complète
+✅ Supprimer les logiciels suspects
+✅ Changer les mots de passe importants
+✅ Activer la double authentification
+            """,
+
+            "tags":
+            "virus malware sécurité antivirus piratage"
+        },
+
+
+        {
+            "titre": "Imprimante impossible à utiliser",
+
+            "categorie": "Périphérique",
+
+            "symptomes":
+            "imprimante hors ligne impression impossible",
+
+            "diagnostic":
+            "Pilote, câble, réseau ou file d'impression bloquée.",
+
+            "solution":
+            """
+✅ Vérifier l'alimentation
+✅ Vérifier le papier
+✅ Redémarrer l'imprimante
+✅ Réinstaller le pilote
+            """,
+
+            "tags":
+            "imprimante impression pilote papier usb"
+        }
+
+    ]
+
+
+
+# ==========================================================
+# CLASSE MOTEUR IA
+# ==========================================================
+
+
+class RechercheIT:
+
+
+    def __init__(self):
+
+        self.base = charger_base_it()
+
+
+
+    def normaliser(self, texte):
+
+        texte = str(texte).lower()
+
+
+        corrections = {
+
+            "ordi": "ordinateur",
+
+            "pc": "ordinateur",
+
+            "rame": "lent",
+
+            "wiffi": "wifi",
+
+            "wify": "wifi",
+
+            "bloqué": "bloque"
+
+        }
+
+
+        for ancien, nouveau in corrections.items():
+
+            texte = texte.replace(
+                ancien,
+                nouveau
+            )
+
+
+        return texte
 
 
 
 
-# =====================================================
-# INTERFACE PRINCIPALE
-# =====================================================
+    def chercher(self, question):
 
 
-def main():
+        question = self.normaliser(question)
 
 
-    # création base
-
-    init_db()
-
-    remplir_base()
-
+        mots = re.findall(
+            r"\w+",
+            question
+        )
 
 
-    # connexion utilisateur
-
-    afficher_auth()
+        resultats = []
 
 
 
-    # moteur recherche
+        for panne in self.base:
 
-    if "moteur" not in st.session_state:
 
-        st.session_state.moteur = RechercheIAPro()
-
+            score = 0
 
 
 
+            texte = self.normaliser(
 
-    # TITRE
+                panne["titre"]
+                + " "
+                + panne["symptomes"]
+                + " "
+                + panne["tags"]
+
+            )
 
 
-    st.markdown(
 
-        '<div class="main-title">'
-        '🤖 Assistant Dépannage IT'
-        '</div>',
+            for mot in mots:
 
-        unsafe_allow_html=True
+
+                if len(mot) < 2:
+
+                    continue
+
+
+
+                if mot in texte:
+
+                    score += 10
+
+
+
+            if score > 0:
+
+
+                resultats.append(
+
+                    (
+                        panne,
+                        score
+                    )
+
+                )
+
+
+
+        resultats.sort(
+
+            key=lambda x:x[1],
+
+            reverse=True
+
+        )
+
+
+        return resultats
+
+# ==========================================================
+# BLOC 3/4
+# PROFIL UTILISATEUR + COMPTEUR GRATUIT + PREMIUM
+# ==========================================================
+
+
+RECHERCHES_GRATUITES = 10
+
+
+
+# ==========================================================
+# CREER / CHARGER UTILISATEUR
+# ==========================================================
+
+
+def creer_utilisateur(email):
+
+    con = db()
+
+    cur = con.cursor()
+
+
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO utilisateurs(email)
+        VALUES (?)
+        """,
+        (email,)
+    )
+
+
+    con.commit()
+
+    con.close()
+
+
+
+
+
+def obtenir_utilisateur(email):
+
+
+    con = db()
+
+    cur = con.cursor()
+
+
+
+    cur.execute(
+
+        """
+        SELECT email,recherches,premium
+        FROM utilisateurs
+        WHERE email=?
+        """,
+
+        (email,)
 
     )
 
 
 
-    st.write(
-        ""
-    )
-
-
-
-    # statistiques
-
-
-    con = connexion()
-
-
-    total = pd.read_sql_query(
-
-        "SELECT COUNT(*) as total FROM pannes",
-
-        con
-
-    ).iloc[0]["total"]
+    resultat = cur.fetchone()
 
 
 
@@ -730,238 +723,280 @@ def main():
 
 
 
-    st.sidebar.metric(
+    return resultat
 
-        "📚 Diagnostics disponibles",
 
-        total
+
+
+
+# ==========================================================
+# COMPTEUR DE RECHERCHES
+# ==========================================================
+
+
+def peut_rechercher(email):
+
+
+    utilisateur = obtenir_utilisateur(email)
+
+
+
+    if utilisateur is None:
+
+        creer_utilisateur(email)
+
+        return True
+
+
+
+    recherches = utilisateur[1]
+
+    premium = utilisateur[2]
+
+
+
+    # Premium = illimité
+
+    if premium == 1:
+
+        return True
+
+
+
+    # Version gratuite
+
+    return recherches < RECHERCHES_GRATUITES
+
+
+
+
+
+def ajouter_recherche(email, question):
+
+
+    con = db()
+
+    cur = con.cursor()
+
+
+
+    cur.execute(
+
+        """
+        INSERT INTO historique
+        (
+        email,
+        question,
+        date
+        )
+
+        VALUES (?,?,?)
+
+        """,
+
+        (
+            email,
+            question,
+            datetime.now().strftime(
+                "%Y-%m-%d %H:%M"
+            )
+        )
 
     )
 
 
 
+    cur.execute(
 
+        """
+        UPDATE utilisateurs
 
-    # ONGLET
+        SET recherches = recherches + 1
 
+        WHERE email=?
 
-    tab1, tab2 = st.tabs(
+        """,
 
-        [
-            "🔍 Recherche IT",
-
-            "🌐 Recherche Web"
-
-        ]
+        (email,)
 
     )
 
 
 
+    con.commit()
+
+    con.close()
 
 
-    # =============================
-    # RECHERCHE IA
-    # =============================
 
 
-    with tab1:
+
+# ==========================================================
+# PROFIL UTILISATEUR
+# ==========================================================
 
 
-        question = st.text_area(
+def afficher_profil():
 
-            "Décrivez votre problème informatique :",
 
-            placeholder=
+    if not st.session_state.user:
 
-            "Exemple : mon ordinateur est lent",
+        return
 
-            height=120
 
+
+    email = st.session_state.user.email
+
+
+
+    creer_utilisateur(email)
+
+
+
+    infos = obtenir_utilisateur(email)
+
+
+
+    if infos:
+
+
+        st.sidebar.markdown("---")
+
+        st.sidebar.markdown(
+            "## 📊 Profil"
         )
 
 
 
-        bouton = st.button(
-
-            "🔍 Analyser",
-
-            type="primary",
-
-            use_container_width=True
-
+        st.sidebar.write(
+            f"👤 {infos[0]}"
         )
 
 
+        if infos[2] == 1:
 
 
+            st.sidebar.success(
+                "⭐ Compte Premium"
+            )
 
-        if bouton and question:
+
+        else:
 
 
+            restant = RECHERCHES_GRATUITES - infos[1]
 
-            resultats = (
 
-                st.session_state.moteur
-                .rechercher(question)
+            st.sidebar.info(
+
+                f"Recherches restantes : {restant}"
 
             )
 
 
 
-            if not resultats:
 
 
-                st.error(
+# ==========================================================
+# BOUTON PREMIUM
+# ==========================================================
 
-                    "Aucun diagnostic trouvé"
 
-                )
+def afficher_premium():
 
 
-            else:
+    st.sidebar.markdown("---")
 
+    st.sidebar.markdown(
+        "## ⭐ Premium"
+    )
 
-                st.success(
 
-                    f"{len(resultats)} problème(s) trouvé(s)"
+    st.sidebar.write(
 
-                )
+        """
+        Débloquez :
 
+        ✅ recherches illimitées
 
+        ✅ historique complet
 
-                for panne, score in resultats:
+        ✅ outils IT avancés
 
-
-
-                    with st.expander(
-
-                        panne["titre"]
-
-                        +
-
-                        f"  ⭐ {score}"
-
-                    ):
-
-
-
-                        st.write(
-
-                            "**Catégorie :**",
-
-                            panne["categorie"]
-
-                        )
-
-
-                        st.write(
-
-                            "**Diagnostic :**"
-
-                        )
-
-
-                        st.info(
-
-                            panne["diagnostic"]
-
-                        )
-
-
-
-                        st.write(
-
-                            "**Procédure :**"
-
-                        )
-
-
-                        st.write(
-
-                            panne["procedure"]
-
-                        )
-
-
-
-                        st.write(
-
-                            "**Questions :**",
-
-                            panne["questions"]
-
-                        )
-
-
-                        st.caption(
-
-                            "Tags : "
-
-                            +
-
-                            panne["tags"]
-
-                        )
-
-
-
-
-
-
-    # =============================
-    # GOOGLE SEARCH
-    # =============================
-
-
-    with tab2:
-
-
-        st.markdown(
+        ✅ support prioritaire
 
         """
 
-        ### 🌐 Recherche Internet
-
-        Vous pouvez rechercher une solution complémentaire :
-
-        """
-
-        )
+    )
 
 
+    if st.sidebar.button(
+        "🚀 Passer Premium"
+    ):
 
-        recherche = st.text_input(
 
-            "Recherche Google"
+        st.sidebar.success(
+
+            "Paiement bientôt disponible"
 
         )
 
+# ==========================================================
+# BLOC 4/4
+# INTERFACE FINALE
+# ==========================================================
 
 
-        if recherche:
+def afficher_resultats(resultats):
 
 
-            url = (
+    if not resultats:
 
-            "https://www.google.com/search?q="
 
-            +
+        st.warning(
+            "❌ Aucun diagnostic trouvé. Essayez avec plus de détails."
+        )
 
-            recherche.replace(
+        return
 
-                " ",
 
-                "+"
 
-            )
+    st.success(
 
-            )
+        f"🔎 {len(resultats)} solution(s) trouvée(s)"
+
+    )
+
+
+
+    for panne, score in resultats:
+
+
+        with st.expander(
+
+            f"🛠️ {panne['titre']}  | Pertinence : {score}"
+
+        ):
+
 
 
             st.markdown(
 
-                f"[🔎 Ouvrir Google]({url})"
+                f"""
+### 📂 Catégorie
+{panne['categorie']}
+
+
+### 🔎 Diagnostic
+
+{panne['diagnostic']}
+
+
+### 🔧 Procédure
+
+{panne['solution']}
+
+"""
 
             )
 
@@ -969,51 +1004,144 @@ def main():
 
 
 
-# =====================================================
+# ==========================================================
+# PROGRAMME PRINCIPAL
+# ==========================================================
+
+
+def main():
+
+
+    moteur = RechercheIT()
+
+
+
+    afficher_profil()
+
+    afficher_premium()
+
+
+
+    st.markdown(
+
+    """
+    <div class="box">
+
+    Bienvenue dans votre assistant de dépannage informatique.
+
+    Décrivez votre problème comme à un technicien.
+
+    Exemple :
+    "Mon PC est lent depuis hier"
+    
+    </div>
+    """,
+
+    unsafe_allow_html=True
+
+    )
+
+
+
+    question = st.text_area(
+
+        "🔍 Quel est votre problème informatique ?",
+
+        height=120,
+
+        placeholder=
+        "Exemple : mon wifi ne fonctionne plus..."
+
+    )
+
+
+
+    bouton = st.button(
+
+        "🚀 Lancer le diagnostic",
+
+        type="primary"
+
+    )
+
+
+
+    if bouton and question:
+
+
+
+        # utilisateur obligatoire pour compteur
+
+        if not st.session_state.user:
+
+
+            st.warning(
+
+                "Créez un compte gratuit pour utiliser le moteur."
+
+            )
+
+            return
+
+
+
+        email = st.session_state.user.email
+
+
+
+        if not peut_rechercher(email):
+
+
+            st.error(
+
+                """
+                Limite gratuite atteinte.
+
+                Passez Premium pour continuer.
+                """
+
+            )
+
+            return
+
+
+
+
+        ajouter_recherche(
+
+            email,
+
+            question
+
+        )
+
+
+
+        resultats = moteur.chercher(
+
+            question
+
+        )
+
+
+
+        afficher_resultats(
+
+            resultats
+
+        )
+
+
+
+
+
+# ==========================================================
 # LANCEMENT
-# =====================================================
+# ==========================================================
 
 
 if __name__ == "__main__":
 
-
     main()
-    def verifier_plan():
-
-    if "user" not in st.session_state:
-        return "gratuit"
-
-
-    user = st.session_state.user
-
-
-    resultat = supabase.table(
-        "profiles"
-    ).select(
-        "plan"
-    ).eq(
-        "id",
-        user.id
-    ).execute()
-
-
-    if resultat.data:
-
-        return resultat.data[0]["plan"]
-
-
-    return "gratuit"
-    plan = verifier_plan()
-
-
-if plan != "premium":
-
-    st.warning(
-        "Version gratuite : 5 diagnostics par jour. Passez Premium pour un accès complet."
-    )
-    supabase.auth.sign_in_with_password(
-{
-"email":email,
-"password":password
-}
-)
+        
+        
