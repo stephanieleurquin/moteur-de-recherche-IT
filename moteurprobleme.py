@@ -355,16 +355,15 @@ def afficher_google_search():
 # ==========================
 def main():
     init_db()
-    def main():
-    init_db()
+    
+   
 
     afficher_auth()
     
     if 'recherche_pro' not in st.session_state:
         st.session_state.recherche_pro = RechercheIAPro()
     
-    if 'recherche_pro' not in st.session_state:
-        st.session_state.recherche_pro = RechercheIAPro()
+   
 
     with st.sidebar:
         st.markdown("### 🤖 Assistant IT Pro")
