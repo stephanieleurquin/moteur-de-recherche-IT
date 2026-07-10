@@ -3,7 +3,6 @@ import sqlite3
 import pandas as pd
 import re
 from datetime import datetime
-from supabase import create_client
 from typing import List, Tuple, Optional
 import hashlib
 
@@ -21,22 +20,6 @@ DB = "assistant_it_ia.db"
 LIMITE_GRATUITE = 10
 
 # ==================================================
-# SUPABASE
-# ==================================================
-
-try:
-    supabase = create_client(
-        st.secrets["SUPABASE_URL"],
-        st.secrets["SUPABASE_KEY"]
-    )
-    SUPABASE_OK = True
-except Exception as e:
-    supabase = None
-    SUPABASE_OK = False
-    st.error("⚠️ Connexion Supabase impossible")
-    st.write(e)
-
-# ==================================================
 # SESSION UTILISATEUR
 # ==================================================
 
@@ -47,7 +30,8 @@ def init_session():
         "recherches": 0,
         "premium": False,
         "historique": [],
-        "moteur": None
+        "moteur": None,
+        "users": {}  # Stockage local des utilisateurs
     }
     for key, value in defaults.items():
         if key not in st.session_state:
@@ -99,6 +83,8 @@ def creer_base():
         CREATE TABLE IF NOT EXISTS utilisateurs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             email TEXT UNIQUE NOT NULL,
+            password TEXT NOT NULL,
+            premium BOOLEAN DEFAULT 0,
             recherches_total INTEGER DEFAULT 0,
             date_inscription TIMESTAMP DEFAULT CURRENT_TIMESTAMP
         )
@@ -119,7 +105,8 @@ def creer_base():
     except sqlite3.Error as e:
         st.error(f"Erreur lors de la création de la base: {e}")
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 # ==================================================
 # AJOUT DES DONNEES DE BASE
@@ -167,6 +154,26 @@ def remplir_base():
                     "Logiciel",
                     4,
                     "windows,démarrage,erreur,ecran-noir,systeme"
+                ),
+                (
+                    "Imprimante ne fonctionne pas",
+                    "L'imprimante ne répond pas, ne s'allume pas ou n'imprime pas",
+                    "Problème de connexion, pilote obsolète, bourrage papier ou encre vide",
+                    "1️⃣ Vérifier que l'imprimante est allumée et connectée\n2️⃣ Vérifier le niveau d'encre/toner\n3️⃣ Réinstaller les pilotes\n4️⃣ Vérifier les bourrages papier",
+                    "L'imprimante est-elle connectée en USB ou WiFi ?",
+                    "Périphériques",
+                    3,
+                    "imprimante,impression,encre,bourrage,driver"
+                ),
+                (
+                    "Email ne s'envoie pas",
+                    "Impossible d'envoyer des emails, erreur de serveur",
+                    "Paramètres SMTP incorrects, connexion internet, ou serveur bloqué",
+                    "1️⃣ Vérifier les paramètres SMTP\n2️⃣ Tester avec un autre client email\n3️⃣ Vérifier la connexion internet\n4️⃣ Contacter l'administrateur",
+                    "Utilisez-vous Outlook, Gmail ou un autre client ?",
+                    "Communication",
+                    3,
+                    "email,smtp,envoi,serveur,parametres"
                 )
             ]
             
@@ -180,7 +187,8 @@ def remplir_base():
     except sqlite3.Error as e:
         st.error(f"Erreur lors du remplissage de la base: {e}")
     finally:
-        conn.close()
+        if conn:
+            conn.close()
 
 # ==================================================
 # MOTEUR DE RECHERCHE IT
@@ -206,7 +214,8 @@ class RechercheIT:
                 st.error(f"Erreur de chargement des données: {e}")
                 self.df = pd.DataFrame()
             finally:
-                conn.close()
+                if conn:
+                    conn.close()
     
     def normaliser(self, texte: str) -> str:
         """Normalise le texte pour la recherche"""
@@ -228,7 +237,9 @@ class RechercheIT:
             "plante": "crash",
             "freeze": "fige",
             "ecran noir": "noir",
-            "demarre pas": "démarre"
+            "demarre pas": "démarre",
+            "imp": "imprimante",
+            "mail": "email"
         }
         
         for ancien, nouveau in corrections.items():
@@ -291,25 +302,19 @@ class RechercheIT:
         return resultats[:10]
 
 # ==================================================
-# AUTHENTIFICATION SUPABASE
+# AUTHENTIFICATION LOCALE
 # ==================================================
 
-def authentification():
-    """Gère l'authentification des utilisateurs"""
+def authentification_locale():
+    """Gère l'authentification des utilisateurs en local"""
     st.sidebar.markdown("## 👤 Compte")
     
     if st.session_state.user:
         # Utilisateur connecté
-        st.sidebar.success(f"✅ Connecté : {st.session_state.user.email}")
+        st.sidebar.success(f"✅ Connecté : {st.session_state.user}")
         st.sidebar.info(f"📊 Recherches utilisées : {st.session_state.recherches}")
         
         if st.sidebar.button("🚪 Déconnexion", use_container_width=True):
-            try:
-                if supabase:
-                    supabase.auth.sign_out()
-            except:
-                pass
-            
             st.session_state.user = None
             st.session_state.recherches = 0
             st.rerun()
@@ -317,10 +322,6 @@ def authentification():
         return
     
     # Pas connecté
-    if not SUPABASE_OK:
-        st.sidebar.error("Supabase non disponible")
-        return
-    
     choix = st.sidebar.radio("Action", ["🔐 Connexion", "📝 Créer un compte"])
     
     with st.sidebar:
@@ -330,30 +331,55 @@ def authentification():
         if choix == "📝 Créer un compte":
             if st.button("Créer mon compte", use_container_width=True, type="primary"):
                 if email and password:
-                    try:
-                        supabase.auth.sign_up({
-                            "email": email,
-                            "password": password
-                        })
-                        st.success("✅ Compte créé ! Vérifiez votre email.")
-                    except Exception as e:
-                        st.error(f"❌ Erreur : {str(e)}")
+                    conn = connexion_db()
+                    if conn:
+                        try:
+                            cur = conn.cursor()
+                            # Vérifier si l'utilisateur existe déjà
+                            cur.execute("SELECT email FROM utilisateurs WHERE email = ?", (email,))
+                            if cur.fetchone():
+                                st.error("❌ Cet email est déjà utilisé")
+                            else:
+                                # Créer l'utilisateur
+                                cur.execute(
+                                    "INSERT INTO utilisateurs (email, password, premium) VALUES (?, ?, 0)",
+                                    (email, hashlib.sha256(password.encode()).hexdigest())
+                                )
+                                conn.commit()
+                                st.success("✅ Compte créé avec succès !")
+                        except sqlite3.Error as e:
+                            st.error(f"❌ Erreur : {str(e)}")
+                        finally:
+                            if conn:
+                                conn.close()
                 else:
                     st.warning("Veuillez remplir tous les champs")
         
         else:  # Connexion
             if st.button("Se connecter", use_container_width=True, type="primary"):
                 if email and password:
-                    try:
-                        resultat = supabase.auth.sign_in_with_password({
-                            "email": email,
-                            "password": password
-                        })
-                        st.session_state.user = resultat.user
-                        st.success("✅ Connexion réussie !")
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"❌ Erreur de connexion : {str(e)}")
+                    conn = connexion_db()
+                    if conn:
+                        try:
+                            cur = conn.cursor()
+                            password_hash = hashlib.sha256(password.encode()).hexdigest()
+                            cur.execute(
+                                "SELECT email, premium FROM utilisateurs WHERE email = ? AND password = ?",
+                                (email, password_hash)
+                            )
+                            user = cur.fetchone()
+                            if user:
+                                st.session_state.user = user["email"]
+                                st.session_state.premium = bool(user["premium"])
+                                st.success("✅ Connexion réussie !")
+                                st.rerun()
+                            else:
+                                st.error("❌ Email ou mot de passe incorrect")
+                        except sqlite3.Error as e:
+                            st.error(f"❌ Erreur : {str(e)}")
+                        finally:
+                            if conn:
+                                conn.close()
                 else:
                     st.warning("Veuillez remplir tous les champs")
 
@@ -388,7 +414,23 @@ def afficher_profil():
             st.sidebar.warning("⚠️ Limite atteinte")
         
         if st.sidebar.button("🚀 Passer Premium", use_container_width=True):
-            st.sidebar.info("Premium bientôt disponible")
+            conn = connexion_db()
+            if conn:
+                try:
+                    cur = conn.cursor()
+                    cur.execute(
+                        "UPDATE utilisateurs SET premium = 1 WHERE email = ?",
+                        (st.session_state.user,)
+                    )
+                    conn.commit()
+                    st.session_state.premium = True
+                    st.sidebar.success("✅ Premium activé !")
+                    st.rerun()
+                except sqlite3.Error as e:
+                    st.sidebar.error(f"❌ Erreur : {str(e)}")
+                finally:
+                    if conn:
+                        conn.close()
 
 # ==================================================
 # INTERFACE PRINCIPALE
@@ -405,28 +447,34 @@ def afficher_resultats(resultats: List[Tuple[dict, int]]):
     # Filtres
     col1, col2, col3 = st.columns(3)
     with col1:
-        if st.selectbox("Filtrer par catégorie", ["Toutes"] + sorted(set(r[0]["categorie"] for r in resultats))) != "Toutes":
-            # Filtrage des résultats
-            pass
+        categories = ["Toutes"] + sorted(set(r[0]["categorie"] for r in resultats if r[0].get("categorie")))
+        categorie_filtre = st.selectbox("Filtrer par catégorie", categories)
     with col2:
         st.selectbox("Trier par", ["Pertinence", "Niveau", "Date"])
     with col3:
-        st.slider("Niveau minimum", 1, 5, 1)
+        niveau_min = st.slider("Niveau minimum", 1, 5, 1)
+    
+    # Filtrer les résultats
+    resultats_filtres = resultats
+    if categorie_filtre != "Toutes":
+        resultats_filtres = [r for r in resultats if r[0].get("categorie") == categorie_filtre]
+    
+    resultats_filtres = [r for r in resultats_filtres if r[0].get("niveau", 1) >= niveau_min]
     
     # Affichage des résultats
-    for panne, score in resultats:
-        niveau_emoji = "🟢" if panne["niveau"] <= 2 else "🟡" if panne["niveau"] <= 3 else "🔴"
+    for panne, score in resultats_filtres:
+        niveau_emoji = "🟢" if panne.get("niveau", 1) <= 2 else "🟡" if panne.get("niveau", 1) <= 3 else "🔴"
         
         with st.expander(
-            f"{niveau_emoji} **{panne['titre']}**  "
-            f"*(Pertinence: {score} pts, Niveau: {panne['niveau']}/5)*"
+            f"{niveau_emoji} **{panne.get('titre', 'Sans titre')}**  "
+            f"*(Pertinence: {score} pts, Niveau: {panne.get('niveau', 1)}/5)*"
         ):
             col1, col2 = st.columns([2, 1])
             
             with col1:
-                st.markdown(f"**📂 Catégorie :** {panne['categorie']}")
-                st.markdown(f"**📋 Diagnostic :**\n{panne['diagnostic']}")
-                st.markdown(f"**🔧 Procédure :**\n{panne['procedure']}")
+                st.markdown(f"**📂 Catégorie :** {panne.get('categorie', 'Non catégorisé')}")
+                st.markdown(f"**📋 Diagnostic :**\n{panne.get('diagnostic', 'Non disponible')}")
+                st.markdown(f"**🔧 Procédure :**\n{panne.get('procedure', 'Non disponible')}")
                 
                 if panne.get("questions"):
                     with st.expander("❓ Questions d'aide"):
@@ -434,24 +482,22 @@ def afficher_resultats(resultats: List[Tuple[dict, int]]):
             
             with col2:
                 # Tags
-                tags = panne["tags"].split(",") if panne["tags"] else []
-                for tag in tags[:3]:  # Afficher seulement les 3 premiers tags
-                    st.chip(tag.strip())
+                if panne.get("tags"):
+                    tags = panne["tags"].split(",") if isinstance(panne["tags"], str) else []
+                    for tag in tags[:3]:  # Afficher seulement les 3 premiers tags
+                        st.chip(tag.strip())
                 
                 # Score de pertinence
                 st.metric("Score", f"{score} pts")
                 
                 # Niveau
-                if panne["niveau"] <= 2:
+                niveau = panne.get("niveau", 1)
+                if niveau <= 2:
                     st.success("✅ Niveau: Débutant")
-                elif panne["niveau"] <= 3:
+                elif niveau <= 3:
                     st.warning("⚠️ Niveau: Intermédiaire")
                 else:
                     st.error("🔴 Niveau: Avancé")
-                
-                # Bouton d'action
-                if st.button("📋 Copier la procédure", key=f"copy_{panne['id']}"):
-                    st.toast("Procédure copiée !")
 
 def main():
     """Fonction principale de l'application"""
@@ -462,7 +508,7 @@ def main():
     remplir_base()
     
     # Sidebar
-    authentification()
+    authentification_locale()
     afficher_profil()
     
     # Corps principal
@@ -475,6 +521,7 @@ def main():
     - La connexion WiFi ne fonctionne pas
     - L'ordinateur ne démarre pas
     - Un logiciel plante systématiquement
+    - Mon imprimante ne fonctionne pas
     """)
     
     # Initialiser le moteur de recherche
@@ -513,10 +560,11 @@ def main():
                     st.warning("Veuillez décrire votre problème.")
     
     # Afficher les résultats s'ils existent
-    if "resultats" in st.session_state and st.session_state.resultats:
-        afficher_resultats(st.session_state.resultats)
-    elif "resultats" in st.session_state:
-        st.info("💡 Décrivez votre problème ci-dessus pour obtenir de l'aide.")
+    if "resultats" in st.session_state:
+        if st.session_state.resultats:
+            afficher_resultats(st.session_state.resultats)
+        else:
+            st.info("💡 Aucun résultat trouvé. Essayez de reformuler votre problème.")
     
     # Footer
     st.markdown("---")
@@ -532,7 +580,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
-      
-
-               
