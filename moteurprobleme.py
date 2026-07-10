@@ -350,6 +350,70 @@ def afficher_google_search():
     """
     st.components.v1.html(google_code, height=400)
 
+
+# ==========================
+# AUTHENTIFICATION UTILISATEUR
+# ==========================
+
+def afficher_auth():
+
+    st.sidebar.markdown("## 👤 Compte utilisateur")
+
+    if "user" not in st.session_state:
+        st.session_state.user = None
+
+    choix = st.sidebar.radio(
+        "Choisir une action",
+        ["Connexion", "Créer un compte"]
+    )
+
+    email = st.sidebar.text_input("Email")
+
+    password = st.sidebar.text_input(
+        "Mot de passe",
+        type="password"
+    )
+
+
+    if choix == "Créer un compte":
+
+        if st.sidebar.button("Créer mon compte"):
+
+            try:
+                supabase.auth.sign_up({
+                    "email": email,
+                    "password": password
+                })
+
+                st.sidebar.success(
+                    "Compte créé ! Vérifiez votre email."
+                )
+
+            except Exception as e:
+                st.sidebar.error(str(e))
+
+
+    if choix == "Connexion":
+
+        if st.sidebar.button("Se connecter"):
+
+            try:
+                resultat = supabase.auth.sign_in_with_password({
+                    "email": email,
+                    "password": password
+                })
+
+                st.session_state.user = resultat.user
+
+                st.sidebar.success(
+                    "Connexion réussie ✅"
+                )
+
+            except Exception as e:
+                st.sidebar.error(
+                    "Erreur de connexion : " + str(e)
+                )
+
 # ==========================
 # INTERFACE PRINCIPALE
 # ==========================
