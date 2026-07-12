@@ -2714,23 +2714,7 @@ def remplir_base():
             ("Problème de décompression", "La décompression échoue", "Problème de décompression",
              "1- Vérifier le fichier\n2- Vérifier les droits\n3- Réessayer", "Quel est le fichier ?", "Divers", 3,
              "decompression,divers"),
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-        ]#je change le contenu du logiciel
+ ]#je change le contenu du logiciel
         cur.executemany(
             "INSERT INTO pannes (titre, description, diagnostic, procedure, questions, categorie, niveau, tags) VALUES (?,?,?,?,?,?,?,?)",
             donnees
