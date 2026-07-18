@@ -2,5 +2,8 @@ streamlit
 supabase==2.15.0
 pandas
 numpy
+pandas
+reportlab
+python-docx
 
 
