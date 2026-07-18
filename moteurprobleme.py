@@ -3233,15 +3233,7 @@ def main():
                                 st.markdown(f"**Procédure:**\n{panne['procedure']}")
                                 if panne.get('questions'):
                                     st.info(f"❓ {panne['questions']}")
-if results:
-    st.success(f"✅ {len(results)} résultat(s) trouvé(s)")
-    for panne, score in results:
-        with st.expander(f"🔹 {panne['titre']} (Score: {score})"):
-            st.markdown(f"**Catégorie:** {panne['categorie']}")
-            st.markdown(f"**Diagnostic:** {panne['diagnostic']}")
-            st.markdown(f"**Procédure:**\n{panne['procedure']}")
-            if panne.get('questions'):
-                st.info(f"❓ {panne['questions']}")
+
 
     # ========== BOUTONS D'EXPORT (RÉSERVÉS PRO/BUSINESS) ==========
     if st.session_state.plan in ["pro", "business"]:
