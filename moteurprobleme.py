@@ -161,21 +161,22 @@ def creer_base():
     """)
     
     # Table utilisateurs (MODIFIÉE)
-    cur.execute("""
-        CREATE TABLE IF NOT EXISTS utilisateurs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            email TEXT UNIQUE,
-            password TEXT,
-            plan TEXT DEFAULT 'gratuit',
-            premium INTEGER DEFAULT 0,
-            recherches INTEGER DEFAULT 0,
-            date_inscription TEXT,
-            entreprise_id INTEGER,
-            role TEXT DEFAULT 'membre',
-            FOREIGN KEY (entreprise_id) REFERENCES entreprises (id)
-        )
-    """)
-    
+   # Table utilisateurs (avec entreprise_id, role, et abonnement_expire_le)
+cur.execute("""
+    CREATE TABLE IF NOT EXISTS utilisateurs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE,
+        password TEXT,
+        plan TEXT DEFAULT 'gratuit',
+        premium INTEGER DEFAULT 0,
+        recherches INTEGER DEFAULT 0,
+        date_inscription TEXT,
+        entreprise_id INTEGER,
+        role TEXT DEFAULT 'membre',
+        abonnement_expire_le TEXT,
+        FOREIGN KEY (entreprise_id) REFERENCES entreprises (id)
+    )
+""")
     # Table invitations (NOUVELLE)
     cur.execute("""
         CREATE TABLE IF NOT EXISTS invitations (
