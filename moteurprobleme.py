@@ -2897,7 +2897,107 @@ def page_virement():
         st.warning(
             "⏳ Après le virement, votre compte sera activé sous 24-48h ouvrés. Un email de confirmation vous sera envoyé.")
 
+# ==================================================
+# PAGE OFFRES
+# ==================================================
+def page_offres():
+    st.markdown(
+        '<p style="color:#FFD700; font-size:36px; font-weight:700; text-align:center;">📋 Nos Offres</p>',
+        unsafe_allow_html=True)
+    st.markdown("---")
 
+    col1, col2, col3 = st.columns(3)
+
+    with col1:
+        st.markdown("""
+        <div style='background: #1a1a2e; padding: 20px; border-radius: 15px; border: 1px solid #2a2a4a; text-align: center;'>
+            <h3 style='color: #aaa;'>🆓 Gratuit</h3>
+            <p style='font-size: 28px; color: white;'>0€</p>
+            <hr>
+            <p style='color: #ccc;'>✅ 3 recherches / jour</p>
+            <p style='color: #ccc;'>✅ 70+ diagnostics</p>
+            <p style='color: #ccc;'>✅ Diagnostics basiques</p>
+            <br>
+            <span style='background: #2a2a4a; padding: 8px 20px; border-radius: 50px; color: #aaa;'>Actuel</span>
+        </div>
+        """, unsafe_allow_html=True)
+
+    with col2:
+        st.markdown("""
+        <div style='background: #1a1a2e; padding: 20px; border-radius: 15px; border: 2px solid #FFD700; text-align: center;'>
+            <h3 style='color: #FFD700;'>🚀 Pro</h3>
+            <p style='font-size: 28px; color: white;'>9.90€<span style='font-size: 16px; color: #aaa;'> /mois</span></p>
+            <hr>
+            <p style='color: #ccc;'>✅ Recherches illimitées</p>
+            <p style='color: #ccc;'>✅ 150+ diagnostics</p>
+            <p style='color: #ccc;'>✅ Diagnostics avancés</p>
+            <p style='color: #ccc;'>✅ Export PDF</p>
+            <p style='color: #ccc;'>✅ Support prioritaire</p>
+            <br>
+        """, unsafe_allow_html=True)
+        if st.button("Choisir Pro", type="primary", key="offre_pro"):
+            st.session_state.montant_virement = 9.90
+            st.session_state.offre_virement = "Pro"
+            st.session_state.plan_virement = "pro"
+            st.session_state.page = "💳 Virement"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    with col3:
+        st.markdown("""
+        <div style='background: #1a1a2e; padding: 20px; border-radius: 15px; border: 2px solid #9B59B6; text-align: center;'>
+            <h3 style='color: #9B59B6;'>🏢 Business</h3>
+            <p style='font-size: 28px; color: white;'>29.90€<span style='font-size: 16px; color: #aaa;'> /mois</span></p>
+            <hr>
+            <p style='color: #ccc;'>✅ Tout Pro inclus</p>
+            <p style='color: #ccc;'>✅ Diagnostics experts</p>
+            <p style='color: #ccc;'>✅ Export PDF/Word</p>
+            <p style='color: #ccc;'>✅ Support 24/7</p>
+            <p style='color: #ccc;'>✅ Accès API</p>
+            <p style='color: #ccc;'>✅ 5 comptes inclus</p>
+            <br>
+        """, unsafe_allow_html=True)
+        if st.button("Choisir Business", type="primary", key="offre_business"):
+            st.session_state.montant_virement = 29.90
+            st.session_state.offre_virement = "Business"
+            st.session_state.plan_virement = "business"
+            st.session_state.page = "💳 Virement"
+            st.rerun()
+        st.markdown("</div>", unsafe_allow_html=True)
+
+    st.markdown("---")
+    st.info("💡 Les offres Pro et Business sont **sans engagement** et peuvent être résiliées à tout moment.")
+
+
+# ==================================================
+# PAGE LICENCE
+# ==================================================
+def page_licence():
+    st.markdown(
+        '<p style="color:#FFD700; font-size:36px; font-weight:700; text-align:center;">📄 Licence et Mentions légales</p>',
+        unsafe_allow_html=True)
+    st.markdown("---")
+
+    st.markdown("""
+    ### 📌 Propriété intellectuelle
+    - Tous les droits de propriété intellectuelle sur le logiciel **Assistant IT Pro** appartiennent à **IT Pro Solutions**.
+    - Toute reproduction, modification ou distribution sans autorisation est interdite.
+
+    ### 🔒 Protection des données
+    - Les données utilisateur sont stockées de manière sécurisée et ne sont jamais partagées avec des tiers.
+    - Conformément au RGPD, vous pouvez demander la suppression de vos données à tout moment.
+
+    ### 💰 Paiements
+    - Les paiements sont traités par virement bancaire. Aucune carte bancaire n'est stockée sur nos serveurs.
+    - Les abonnements sont sans engagement et peuvent être résiliés en nous contactant.
+
+    ### 📞 Support
+    - Contact : tech.contactinformatique@proton.me
+    - Délai de réponse : 24-48h ouvrés
+
+    ---
+    *Version 2.0 – 2026*
+    """)
 # ==================================================
 # MAIN
 # ==================================================
