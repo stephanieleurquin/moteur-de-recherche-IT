@@ -3233,39 +3233,50 @@ def main():
                                 st.markdown(f"**Procédure:**\n{panne['procedure']}")
                                 if panne.get('questions'):
                                     st.info(f"❓ {panne['questions']}")
+if results:
+    st.success(f"✅ {len(results)} résultat(s) trouvé(s)")
+    for panne, score in results:
+        with st.expander(f"🔹 {panne['titre']} (Score: {score})"):
+            st.markdown(f"**Catégorie:** {panne['categorie']}")
+            st.markdown(f"**Diagnostic:** {panne['diagnostic']}")
+            st.markdown(f"**Procédure:**\n{panne['procedure']}")
+            if panne.get('questions'):
+                st.info(f"❓ {panne['questions']}")
 
-                        # ========== BOUTONS D'EXPORT (AJOUTÉS ICI) ==========
-                        st.markdown("---")
-                        col_btn1, col_btn2 = st.columns(2)
-                        with col_btn1:
-                            pdf_data = generer_pdf_resultats(results, question)
-                            if pdf_data:
-                                st.download_button(
-                                    label="📄 Télécharger en PDF",
-                                    data=pdf_data,
-                                    file_name=f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                                    mime="application/pdf",
-                                    key="pdf_download"
-                                )
-                            else:
-                                st.warning("Export PDF indisponible (bibliothèque manquante)")
-                        with col_btn2:
-                            word_data = generer_word_resultats(results, question)
-                            if word_data:
-                                st.download_button(
-                                    label="📝 Télécharger en Word",
-                                    data=word_data,
-                                    file_name=f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
-                                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                    key="word_download"
-                                )
-                            else:
-                                st.warning("Export Word indisponible (bibliothèque manquante)")
-                    else:
-                        st.warning("😕 Aucun résultat trouvé")
+    # ========== BOUTONS D'EXPORT (RÉSERVÉS PRO/BUSINESS) ==========
+    if st.session_state.plan in ["pro", "business"]:
+        st.markdown("---")
+        col_btn1, col_btn2 = st.columns(2)
+        with col_btn1:
+            pdf_data = generer_pdf_resultats(results, question)
+            if pdf_data:
+                st.download_button(
+                    label="📄 Télécharger en PDF",
+                    data=pdf_data,
+                    file_name=f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                    mime="application/pdf",
+                    key="pdf_download"
+                )
             else:
-                st.warning("⚠️ Décrivez votre problème")
-
+                st.warning("Export PDF indisponible (bibliothèque manquante)")
+        with col_btn2:
+            word_data = generer_word_resultats(results, question)
+            if word_data:
+                st.download_button(
+                    label="📝 Télécharger en Word",
+                    data=word_data,
+                    file_name=f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
+                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                    key="word_download"
+                )
+            else:
+                st.warning("Export Word indisponible (bibliothèque manquante)")
+    else:
+        st.info("🔒 L'export PDF/Word est disponible uniquement pour les abonnés **Pro** et **Business**.")
+else:
+    st.warning("😕 Aucun résultat trouvé")
+    
+#####remplacement de bloc #####
     st.markdown("---")
     st.markdown(
         '<p style="text-align:center; color:#444; font-size:12px;">© 2026 <strong style="color:#FFD700;">IT Pro Solutions</strong> - Tous droits réservés</p>',
