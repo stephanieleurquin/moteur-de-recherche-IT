@@ -2922,7 +2922,31 @@ def connexion_utilisateur(email, password):
 def mise_a_jour_plan(email, plan):
     conn = connexion_db()
     cur = conn.cursor()
+    
+    # 1. Mettre à jour le plan et premium de l'utilisateur
     cur.execute("UPDATE utilisateurs SET plan = ?, premium = 1 WHERE email = ?", (plan, email))
+    
+    # 2. Si l'utilisateur passe à Business, créer une entreprise s'il n'en a pas
+    if plan == "business":
+        # Vérifier si l'utilisateur a déjà une entreprise
+        cur.execute("SELECT entreprise_id FROM utilisateurs WHERE email = ?", (email,))
+        result = cur.fetchone()
+        
+        if result and result[0] is None:
+            # Créer une entreprise avec un nom par défaut
+            nom_entreprise = f"Entreprise de {email}"
+            cur.execute(
+                "INSERT INTO entreprises (nom, date_creation, plan) VALUES (?, ?, 'business')",
+                (nom_entreprise, date.today().isoformat())
+            )
+            entreprise_id = cur.lastrowid
+            
+            # Assigner l'entreprise à l'utilisateur et le définir comme admin
+            cur.execute(
+                "UPDATE utilisateurs SET entreprise_id = ?, role = 'admin' WHERE email = ?",
+                (entreprise_id, email)
+            )
+    
     conn.commit()
     conn.close()
 
