@@ -3200,53 +3200,74 @@ def main():
     # ==================================================
     # ACCUEIL
     # ==================================================
+# ==================================================
+# ACCUEIL
+# ==================================================
 
-    st.markdown(
-        '<p style="color:#00d4ff; font-size:48px; font-weight:900; text-align:center;">🔧 Assistant Dépannage IT</p>',
-        unsafe_allow_html=True)
-    st.markdown(
-        '<p style="color:#aaa; text-align:center; font-size:18px;">Par IT Pro Solutions - <span style="color:#FFD700;">150+ diagnostics</span></p>',
-        unsafe_allow_html=True)
-    st.markdown("---")
+st.markdown(
+    '<p style="color:#00d4ff; font-size:48px; font-weight:900; text-align:center;">🔧 Assistant Dépannage IT</p>',
+    unsafe_allow_html=True)
+st.markdown(
+    '<p style="color:#aaa; text-align:center; font-size:18px;">Par IT Pro Solutions - <span style="color:#FFD700;">150+ diagnostics</span></p>',
+    unsafe_allow_html=True)
+st.markdown("---")
 
-    question = st.text_area("Décrivez votre problème :", height=100,
-                            placeholder="Ex: mon PC est lent, le wifi ne marche pas, erreur Windows...")
+question = st.text_area("Décrivez votre problème :", height=100,
+                        placeholder="Ex: mon PC est lent, le wifi ne marche pas, erreur Windows...")
 
-    col1, col2, col3 = st.columns([1, 2, 1])
-    with col2:
-        if st.button("🔍 Rechercher", type="primary", use_container_width=True):
-            if not st.session_state.user:
-                st.error("❌ Connectez-vous d'abord")
-            elif not st.session_state.premium and st.session_state.recherches_jour >= 3:
-                st.error("🔴 LIMITE ATTEINTE ! Passez Premium pour continuer.")
-                if st.button("VOIR LES OFFRES"):
-                    st.session_state.page = "📋 Offres"
-                    st.rerun()
-            elif question.strip():
-                with st.spinner("Recherche en cours..."):
-                    if not st.session_state.premium:
-                        st.session_state.recherches_jour += 1
-                        st.session_state.recherches += 1
-                    results = st.session_state.moteur.rechercher(question)
-                    if results:
-                        st.success(f"✅ {len(results)} résultat(s) trouvé(s)")
-                        for panne, score in results:
-                            with st.expander(f"🔹 {panne['titre']} (Score: {score})"):
-                                st.markdown(f"**Catégorie:** {panne['categorie']}")
-                                st.markdown(f"**Diagnostic:** {panne['diagnostic']}")
-                                st.markdown(f"**Procédure:**\n{panne['procedure']}")
-                                if panne.get('questions'):
-                                    st.info(f"❓ {panne['questions']}")
-                    else:
-                        st.warning("😕 Aucun résultat trouvé")
-            else:
-                st.warning("⚠️ Décrivez votre problème")
+col1, col2, col3 = st.columns([1, 2, 1])
+with col2:
+    if st.button("🔍 Rechercher", type="primary", use_container_width=True):
+        if not st.session_state.user:
+            st.error("❌ Connectez-vous d'abord")
+        elif not st.session_state.premium and st.session_state.recherches_jour >= 3:
+            st.error("🔴 LIMITE ATTEINTE ! Passez Premium pour continuer.")
+            if st.button("VOIR LES OFFRES"):
+                st.session_state.page = "📋 Offres"
+                st.rerun()
+        elif question.strip():
+            with st.spinner("Recherche en cours..."):
+                if not st.session_state.premium:
+                    st.session_state.recherches_jour += 1
+                    st.session_state.recherches += 1
+                results = st.session_state.moteur.rechercher(question)
+                if results:
+                    st.success(f"✅ {len(results)} résultat(s) trouvé(s)")
+                    for panne, score in results:
+                        with st.expander(f"🔹 {panne['titre']} (Score: {score})"):
+                            st.markdown(f"**Catégorie:** {panne['categorie']}")
+                            st.markdown(f"**Diagnostic:** {panne['diagnostic']}")
+                            st.markdown(f"**Procédure:**\n{panne['procedure']}")
+                            if panne.get('questions'):
+                                st.info(f"❓ {panne['questions']}")
+                    
+                    # === BOUTONS D'EXPORT (NOUVEAU) ===
+                    st.markdown("---")
+                    col_btn1, col_btn2 = st.columns(2)
+                    with col_btn1:
+                        pdf_data = generer_pdf_resultats(results, question)
+                        st.download_button(
+                            label="📄 Télécharger en PDF",
+                            data=pdf_data,
+                            file_name=f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
+                            mime="application/pdf",
+                            key="pdf_download"
+                        )
+                    with col_btn2:
+                        word_data = generer_word_resultats(results, question)
+                        st.download_button(
+                            label="📝 Télécharger en Word",
+                            data=word_data,
+                            file_name=f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
+                            mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                            key="word_download"
+                        )
+                else:
+                    st.warning("😕 Aucun résultat trouvé")
+        else:
+            st.warning("⚠️ Décrivez votre problème")
 
-    st.markdown("---")
-    st.markdown(
-        '<p style="text-align:center; color:#444; font-size:12px;">© 2026 <strong style="color:#FFD700;">IT Pro Solutions</strong> - Tous droits réservés</p>',
-        unsafe_allow_html=True)
-
-
-if __name__ == "__main__":
-    main()
+st.markdown("---")
+st.markdown(
+    '<p style="text-align:center; color:#444; font-size:12px;">© 2026 <strong style="color:#FFD700;">IT Pro Solutions</strong> - Tous droits réservés</p>',
+    unsafe_allow_html=True)
