@@ -1,0 +1,272 @@
+# ==================================================
+# API IT Pro Solutions - Pour les comptes Business
+# ==================================================
+
+from fastapi import FastAPI, HTTPException, Depends
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+import sqlite3
+import hashlib
+import jwt
+import secrets
+from datetime import datetime, timedelta
+from typing import List, Optional
+
+# ==================================================
+# CONFIGURATION
+# ==================================================
+
+app = FastAPI(
+    title="IT Pro Solutions API",
+    description="API de diagnostics informatiques - Réservée aux abonnés Business",
+    version="1.0"
+)
+
+security = HTTPBearer()
+SECRET_KEY = secrets.token_urlsafe(32)  # À remplacer par une variable d'environnement en production
+DB = "assistant_it_pro.db"              # Même base que l'application Streamlit
+
+# ==================================================
+# BASE DE DONNÉES
+# ==================================================
+
+def connexion_db():
+    conn = sqlite3.connect(DB)
+    conn.row_factory = sqlite3.Row   # Permet d'accéder aux colonnes par leur nom
+    return conn
+
+# ==================================================
+# AUTHENTIFICATION JWT
+# ==================================================
+
+def verifier_token(credentials: HTTPAuthorizationCredentials = Depends(security)):
+    """Vérifie la validité du token JWT et retourne l'email de l'utilisateur"""
+    token = credentials.credentials
+    try:
+        payload = jwt.decode(token, SECRET_KEY, algorithms=["HS256"])
+        return payload["email"]
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expiré")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Token invalide")
+
+# ==================================================
+# ENDPOINTS
+# ==================================================
+
+@app.get("/")
+def root():
+    """Point d'entrée de l'API"""
+    return {
+        "nom": "IT Pro Solutions API",
+        "version": "1.0",
+        "description": "API de diagnostics informatiques - Réservée aux abonnés Business",
+        "endpoints": {
+            "/login": "POST - Obtenir un token d'authentification",
+            "/rechercher": "GET - Rechercher un diagnostic (paramètre 'q')",
+            "/diagnostic/{id}": "GET - Récupérer un diagnostic par son ID",
+            "/categories": "GET - Lister toutes les catégories",
+            "/statistiques": "GET - Statistiques des diagnostics"
+        }
+    }
+
+@app.post("/login")
+def login(email: str, password: str):
+    """
+    Authentification d'un utilisateur Business.
+    Retourne un token JWT valable 7 jours.
+    """
+    conn = connexion_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM utilisateurs WHERE email = ?", (email,))
+    user = cur.fetchone()
+    conn.close()
+
+    if not user:
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+
+    # Vérifier le mot de passe avec SHA-256 (comme dans l'app Streamlit)
+    hashed_password = hashlib.sha256(password.encode()).hexdigest()
+    if user["password"] != hashed_password:
+        raise HTTPException(status_code=401, detail="Email ou mot de passe incorrect")
+
+    # Vérifier que l'utilisateur est bien Business
+    if user["plan"] != "business":
+        raise HTTPException(
+            status_code=403,
+            detail="L'API est accessible uniquement pour les comptes Business. Contactez-nous pour passer à l'offre Business."
+        )
+
+    # Générer le token JWT (valable 7 jours)
+    token = jwt.encode(
+        {
+            "email": email,
+            "exp": datetime.utcnow() + timedelta(days=7)
+        },
+        SECRET_KEY,
+        algorithm="HS256"
+    )
+
+    return {
+        "token": token,
+        "email": email,
+        "plan": user["plan"],
+        "message": "Authentification réussie - Token valable 7 jours"
+    }
+
+@app.get("/rechercher")
+def rechercher(q: str, email: str = Depends(verifier_token)):
+    """
+    Recherche des diagnostics par mot-clé (dans titre, description, tags, catégorie).
+    Réservé aux comptes Business.
+    """
+    conn = connexion_db()
+    cur = conn.cursor()
+
+    # Vérification supplémentaire : l'utilisateur est-il toujours Business ?
+    cur.execute("SELECT plan FROM utilisateurs WHERE email = ?", (email,))
+    user = cur.fetchone()
+    conn.close()
+
+    if not user or user["plan"] != "business":
+        raise HTTPException(status_code=403, detail="L'API est réservée aux comptes Business.")
+
+    # Exécuter la recherche
+    conn = connexion_db()
+    cur = conn.cursor()
+    cur.execute("""
+        SELECT id, titre, description, diagnostic, procedure, questions, categorie, niveau, tags
+        FROM pannes
+        WHERE titre LIKE ?
+           OR description LIKE ?
+           OR tags LIKE ?
+           OR categorie LIKE ?
+        LIMIT 20
+    """, (f"%{q}%", f"%{q}%", f"%{q}%", f"%{q}%"))
+
+    results = cur.fetchall()
+    conn.close()
+
+    # Formater les résultats
+    return [
+        {
+            "id": r["id"],
+            "titre": r["titre"],
+            "description": r["description"],
+            "categorie": r["categorie"],
+            "niveau": r["niveau"],
+            "diagnostic": r["diagnostic"],
+            "procedure": r["procedure"],
+            "questions": r["questions"] if r["questions"] else None,
+            "tags": r["tags"].split(",") if r["tags"] else []
+        }
+        for r in results
+    ]
+
+@app.get("/diagnostic/{panne_id}")
+def get_diagnostic(panne_id: int, email: str = Depends(verifier_token)):
+    """
+    Récupère un diagnostic complet par son ID.
+    Réservé aux comptes Business.
+    """
+    conn = connexion_db()
+    cur = conn.cursor()
+
+    # Vérification Business
+    cur.execute("SELECT plan FROM utilisateurs WHERE email = ?", (email,))
+    user = cur.fetchone()
+    conn.close()
+
+    if not user or user["plan"] != "business":
+        raise HTTPException(status_code=403, detail="L'API est réservée aux comptes Business.")
+
+    conn = connexion_db()
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM pannes WHERE id = ?", (panne_id,))
+    result = cur.fetchone()
+    conn.close()
+
+    if not result:
+        raise HTTPException(status_code=404, detail="Diagnostic non trouvé")
+
+    return {
+        "id": result["id"],
+        "titre": result["titre"],
+        "description": result["description"],
+        "categorie": result["categorie"],
+        "niveau": result["niveau"],
+        "diagnostic": result["diagnostic"],
+        "procedure": result["procedure"],
+        "questions": result["questions"] if result["questions"] else None,
+        "tags": result["tags"].split(",") if result["tags"] else []
+    }
+
+@app.get("/categories")
+def get_categories(email: str = Depends(verifier_token)):
+    """
+    Liste toutes les catégories disponibles.
+    Réservé aux comptes Business.
+    """
+    conn = connexion_db()
+    cur = conn.cursor()
+
+    cur.execute("SELECT plan FROM utilisateurs WHERE email = ?", (email,))
+    user = cur.fetchone()
+    conn.close()
+
+    if not user or user["plan"] != "business":
+        raise HTTPException(status_code=403, detail="L'API est réservée aux comptes Business.")
+
+    conn = connexion_db()
+    cur = conn.cursor()
+    cur.execute("SELECT DISTINCT categorie FROM pannes ORDER BY categorie")
+    results = cur.fetchall()
+    conn.close()
+
+    return {"categories": [r["categorie"] for r in results]}
+
+@app.get("/statistiques")
+def get_statistiques(email: str = Depends(verifier_token)):
+    """
+    Retourne des statistiques sur les diagnostics (total, par catégorie, par niveau).
+    Réservé aux comptes Business.
+    """
+    conn = connexion_db()
+    cur = conn.cursor()
+
+    cur.execute("SELECT plan FROM utilisateurs WHERE email = ?", (email,))
+    user = cur.fetchone()
+    conn.close()
+
+    if not user or user["plan"] != "business":
+        raise HTTPException(status_code=403, detail="L'API est réservée aux comptes Business.")
+
+    conn = connexion_db()
+    cur = conn.cursor()
+
+    # Total
+    cur.execute("SELECT COUNT(*) as total FROM pannes")
+    total = cur.fetchone()["total"]
+
+    # Par catégorie
+    cur.execute("SELECT categorie, COUNT(*) as count FROM pannes GROUP BY categorie")
+    categories = cur.fetchall()
+
+    # Par niveau
+    cur.execute("SELECT niveau, COUNT(*) as count FROM pannes GROUP BY niveau ORDER BY niveau")
+    niveaux = cur.fetchall()
+
+    conn.close()
+
+    return {
+        "total_diagnostics": total,
+        "par_categorie": [{"categorie": r["categorie"], "count": r["count"]} for r in categories],
+        "par_niveau": [{"niveau": r["niveau"], "count": r["count"]} for r in niveaux]
+    }
+
+# ==================================================
+# LANCEMENT (si exécuté directement)
+# ==================================================
+
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=8001)
