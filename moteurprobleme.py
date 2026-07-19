@@ -21,13 +21,19 @@ st.set_page_config(
 )
 
 DB = "assistant_it_pro.db"
-def connexion_db():  # 👈 METTEZ LA FONCTION ICI
+
+# ==================================================
+# FONCTIONS DE BASE DE DONNÉES (DOIT ÊTRE ICI)
+# ==================================================
+
+def connexion_db():
     try:
         conn = sqlite3.connect(DB)
         return conn
     except sqlite3.Error as e:
         st.error(f"Erreur de connexion : {e}")
         return None
+
 # ==================================================
 # CSS
 # ==================================================
@@ -120,9 +126,8 @@ OFFRES = {
 }
 
 # ==================================================
-# FONCTIONS DE BASE DE DONNÉES
+# CRÉATION ET REMPLISSAGE DE LA BASE
 # ==================================================
-
 
 def creer_base():
     conn = connexion_db()
@@ -130,7 +135,6 @@ def creer_base():
         return
     cur = conn.cursor()
     
-    # Table pannes
     cur.execute("""
         CREATE TABLE IF NOT EXISTS pannes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -145,7 +149,6 @@ def creer_base():
         )
     """)
     
-    # Table entreprises
     cur.execute("""
         CREATE TABLE IF NOT EXISTS entreprises (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -155,7 +158,6 @@ def creer_base():
         )
     """)
     
-    # Table utilisateurs
     cur.execute("""
         CREATE TABLE IF NOT EXISTS utilisateurs (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -172,7 +174,6 @@ def creer_base():
         )
     """)
     
-    # Table invitations
     cur.execute("""
         CREATE TABLE IF NOT EXISTS invitations (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -186,12 +187,10 @@ def creer_base():
     """)
     
     conn.commit()
-    
     try:
         cur.execute("ALTER TABLE utilisateurs ADD COLUMN abonnement_expire_le TEXT")
     except:
         pass
-    
     conn.close()
 
 def remplir_base():
@@ -205,6 +204,7 @@ def remplir_base():
             ("Windows ne s'installe pas", "L'installation de Windows échoue", "Problème de clé USB ou de pilote manquant", "1- Vérifier la clé USB\n2- Désactiver Secure Boot\n3- Installer les pilotes manuellement", "Quelle version de Windows ?", "Windows", 4, "installation,windows"),
             ("Windows demande une clé", "Windows demande une clé d'activation", "Clé manquante ou invalide", "1- Vérifier la clé\n2- Contacter Microsoft\n3- Utiliser une clé générique", "Avez-vous une clé valide ?", "Windows", 2, "cle,activation,windows"),
             ("Windows Update échoue", "Les mises à jour Windows ne s'installent pas", "Problème de cache ou de service", "1- Arrêter le service Update\n2- Vider le cache\n3- Redémarrer le service", "Quelle est l'erreur ?", "Windows", 3, "update,windows"),
+            # Ajoute ici toutes tes autres pannes (je mets juste un échantillon)
         ]
         cur.executemany(
             "INSERT INTO pannes (titre, description, diagnostic, procedure, questions, categorie, niveau, tags) VALUES (?,?,?,?,?,?,?,?)",
@@ -236,7 +236,6 @@ class RechercheIT:
         question = question.lower()
         mots = re.findall(r"\w+", question)
         resultats = []
-
         for _, panne in self.df.iterrows():
             score = 0
             champs = f"{panne['titre']} {panne['description']} {panne['tags']} {panne['categorie']}".lower()
@@ -247,12 +246,11 @@ class RechercheIT:
                     score += 10
             if score > 0:
                 resultats.append((dict(panne), score))
-
         resultats.sort(key=lambda x: x[1], reverse=True)
         return resultats[:10]
 
 # ==================================================
-# FONCTIONS D'EXPORT
+# EXPORT PDF / WORD
 # ==================================================
 
 def generer_pdf_resultats(resultats, question):
@@ -260,11 +258,9 @@ def generer_pdf_resultats(resultats, question):
         from reportlab.lib.pagesizes import A4
         from reportlab.pdfgen import canvas
         from reportlab.lib.utils import simpleSplit
-        from io import BytesIO
     except ImportError:
-        st.error("❌ La bibliothèque 'reportlab' n'est pas installée.")
+        st.error("❌ reportlab non installé")
         return None
-
     buffer = BytesIO()
     c = canvas.Canvas(buffer, pagesize=A4)
     largeur, hauteur = A4
@@ -273,11 +269,10 @@ def generer_pdf_resultats(resultats, question):
     c.drawString(50, y, "Résultats de recherche - Assistant IT Pro")
     y -= 30
     c.setFont("Helvetica", 12)
-    c.drawString(50, y, f"Question posée : {question}")
+    c.drawString(50, y, f"Question : {question}")
     y -= 20
-    c.drawString(50, y, f"{len(resultats)} résultat(s) trouvé(s)")
+    c.drawString(50, y, f"{len(resultats)} résultat(s)")
     y -= 30
-
     for i, (panne, score) in enumerate(resultats, 1):
         if y < 100:
             c.showPage()
@@ -287,58 +282,37 @@ def generer_pdf_resultats(resultats, question):
         c.drawString(50, y, f"{i}. {panne['titre']} (Score: {score})")
         y -= 20
         c.setFont("Helvetica", 10)
-        texte = f"Catégorie : {panne['categorie']}"
-        c.drawString(60, y, texte)
-        y -= 15
-        texte = f"Diagnostic : {panne['diagnostic']}"
-        lignes = simpleSplit(texte, "Helvetica", 10, largeur - 100)
-        for ligne in lignes:
-            c.drawString(60, y, ligne)
-            y -= 15
-        texte = f"Procédure : {panne['procedure']}"
-        lignes = simpleSplit(texte, "Helvetica", 10, largeur - 100)
-        for ligne in lignes:
-            c.drawString(60, y, ligne)
-            y -= 15
+        for ligne in simpleSplit(f"Catégorie : {panne['categorie']}", "Helvetica", 10, largeur-100):
+            c.drawString(60, y, ligne); y -= 15
+        for ligne in simpleSplit(f"Diagnostic : {panne['diagnostic']}", "Helvetica", 10, largeur-100):
+            c.drawString(60, y, ligne); y -= 15
+        for ligne in simpleSplit(f"Procédure : {panne['procedure']}", "Helvetica", 10, largeur-100):
+            c.drawString(60, y, ligne); y -= 15
         if panne.get('questions'):
-            c.drawString(60, y, f"Questions : {panne['questions']}")
-            y -= 15
+            for ligne in simpleSplit(f"Questions : {panne['questions']}", "Helvetica", 10, largeur-100):
+                c.drawString(60, y, ligne); y -= 15
         y -= 10
-
     c.save()
     return buffer.getvalue()
 
 def generer_word_resultats(resultats, question):
     try:
         import docx
-        from io import BytesIO
     except ImportError:
-        st.error("❌ La bibliothèque 'python-docx' n'est pas installée.")
+        st.error("❌ python-docx non installé")
         return None
-
     doc = docx.Document()
     doc.add_heading("Résultats de recherche - Assistant IT Pro", 0)
-    doc.add_paragraph(f"Question posée : {question}")
-    doc.add_paragraph(f"{len(resultats)} résultat(s) trouvé(s)")
-    doc.add_paragraph()
-
+    doc.add_paragraph(f"Question : {question}")
+    doc.add_paragraph(f"{len(resultats)} résultat(s)")
     for i, (panne, score) in enumerate(resultats, 1):
         doc.add_heading(f"{i}. {panne['titre']} (Score: {score})", level=1)
-        p = doc.add_paragraph()
-        p.add_run("Catégorie : ").bold = True
-        p.add_run(panne['categorie'])
-        p = doc.add_paragraph()
-        p.add_run("Diagnostic : ").bold = True
-        p.add_run(panne['diagnostic'])
-        p = doc.add_paragraph()
-        p.add_run("Procédure : ").bold = True
-        p.add_run(panne['procedure'])
+        p = doc.add_paragraph(); p.add_run("Catégorie : ").bold = True; p.add_run(panne['categorie'])
+        p = doc.add_paragraph(); p.add_run("Diagnostic : ").bold = True; p.add_run(panne['diagnostic'])
+        p = doc.add_paragraph(); p.add_run("Procédure : ").bold = True; p.add_run(panne['procedure'])
         if panne.get('questions'):
-            p = doc.add_paragraph()
-            p.add_run("Questions : ").bold = True
-            p.add_run(panne['questions'])
+            p = doc.add_paragraph(); p.add_run("Questions : ").bold = True; p.add_run(panne['questions'])
         doc.add_paragraph()
-
     buffer = BytesIO()
     doc.save(buffer)
     return buffer.getvalue()
@@ -364,7 +338,7 @@ def inscription(email, password):
     except sqlite3.IntegrityError:
         return False
     except Exception as e:
-        st.error(f"Erreur d'inscription : {e}")
+        st.error(f"Erreur inscription : {e}")
         return False
 
 def connexion_utilisateur(email, password):
@@ -375,24 +349,18 @@ def connexion_utilisateur(email, password):
     pwd = hashlib.sha256(password.encode()).hexdigest()
     cur.execute("SELECT * FROM utilisateurs WHERE email = ? AND password = ?", (email, pwd))
     user = cur.fetchone()
-    
     if user:
         expire_le = user[9] if len(user) > 9 else None
         if expire_le:
             try:
                 date_expiration = datetime.fromisoformat(expire_le)
                 if datetime.now() > date_expiration:
-                    cur.execute("""
-                        UPDATE utilisateurs 
-                        SET plan = 'gratuit', premium = 0, abonnement_expire_le = NULL 
-                        WHERE email = ?
-                    """, (email,))
+                    cur.execute("UPDATE utilisateurs SET plan='gratuit', premium=0, abonnement_expire_le=NULL WHERE email=?", (email,))
                     conn.commit()
                     cur.execute("SELECT * FROM utilisateurs WHERE email = ? AND password = ?", (email, pwd))
                     user = cur.fetchone()
             except:
                 pass
-    
     conn.close()
     return user
 
@@ -402,93 +370,55 @@ def mise_a_jour_plan(email, plan):
         return
     cur = conn.cursor()
     cur.execute("UPDATE utilisateurs SET plan = ?, premium = 1 WHERE email = ?", (plan, email))
-    
     if plan == "business":
         cur.execute("SELECT entreprise_id FROM utilisateurs WHERE email = ?", (email,))
         result = cur.fetchone()
-        
         if result and result[0] is None:
             nom_entreprise = f"Entreprise de {email}"
-            cur.execute(
-                "INSERT INTO entreprises (nom, date_creation, plan) VALUES (?, ?, 'business')",
-                (nom_entreprise, date.today().isoformat())
-            )
+            cur.execute("INSERT INTO entreprises (nom, date_creation, plan) VALUES (?, ?, 'business')",
+                        (nom_entreprise, date.today().isoformat()))
             entreprise_id = cur.lastrowid
-            cur.execute(
-                "UPDATE utilisateurs SET entreprise_id = ?, role = 'admin' WHERE email = ?",
-                (entreprise_id, email)
-            )
-    
+            cur.execute("UPDATE utilisateurs SET entreprise_id = ?, role = 'admin' WHERE email = ?",
+                        (entreprise_id, email))
     conn.commit()
     conn.close()
 
 # ==================================================
-# PAGE VIREMENT BANCAIRE
+# PAGES
 # ==================================================
 
 def page_virement():
-    st.markdown(
-        '<p style="color:#FFD700; font-size:36px; font-weight:700; text-align:center;">💳 Paiement par Virement Bancaire</p>',
-        unsafe_allow_html=True)
+    st.markdown('<p style="color:#FFD700; font-size:36px; font-weight:700; text-align:center;">💳 Paiement par Virement Bancaire</p>', unsafe_allow_html=True)
     st.markdown("---")
-
     st.markdown("""
     <div style='background: linear-gradient(135deg, #1a5276 0%, #2e86c1 100%); padding: 30px; border-radius: 20px; text-align: center; margin-bottom: 30px;'>
         <h2 style='color: white;'>Paiement sécurisé</h2>
         <p style='color: #FFD700;'>Virement bancaire - 0€ de frais</p>
     </div>
     """, unsafe_allow_html=True)
-
-    st.markdown("### Choisissez votre offre")
-
     col1, col2 = st.columns(2)
-
     with col1:
         with st.container(border=True):
-            st.markdown("""
-            ### 🚀 PRO
-            **9.90€ / mois** | **79€ / an**
-            - Recherches illimitées
-            - Diagnostics avancés
-            - 150+ diagnostics
-            - Export PDF
-            - Support prioritaire
-            - Statistiques avancées
-            """)
+            st.markdown("### 🚀 PRO\n**9.90€ / mois** | **79€ / an**\n- Recherches illimitées\n- Diagnostics avancés\n- 150+ diagnostics\n- Export PDF\n- Support prioritaire\n- Statistiques avancées")
             if st.button("Choisir Pro - 9.90€", type="primary", use_container_width=True):
                 st.session_state.montant_virement = 9.90
                 st.session_state.offre_virement = "Pro"
                 st.session_state.plan_virement = "pro"
                 st.success("✅ Offre Pro sélectionnée !")
                 st.balloons()
-
     with col2:
         with st.container(border=True):
-            st.markdown("""
-            ### 🏢 BUSINESS
-            **29.90€ / mois** | **249€ / an**
-            - Tout Pro inclus
-            - Diagnostics experts
-            - 150+ diagnostics
-            - Export PDF/Word
-            - Support 24/7
-            - Accès API
-            - 5 comptes inclus
-            """)
+            st.markdown("### 🏢 BUSINESS\n**29.90€ / mois** | **249€ / an**\n- Tout Pro inclus\n- Diagnostics experts\n- 150+ diagnostics\n- Export PDF/Word\n- Support 24/7\n- Accès API\n- 5 comptes inclus")
             if st.button("Choisir Business - 29.90€", type="primary", use_container_width=True):
                 st.session_state.montant_virement = 29.90
                 st.session_state.offre_virement = "Business"
                 st.session_state.plan_virement = "business"
                 st.success("✅ Offre Business sélectionnée !")
                 st.balloons()
-
     if st.session_state.montant_virement > 0:
         st.markdown("---")
-        st.markdown("### Effectuez le virement")
-
         ref = ''.join(random.choices(string.ascii_uppercase + string.digits, k=8))
         st.session_state.ref_virement = ref
-
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("""
@@ -503,37 +433,21 @@ def page_virement():
         with col2:
             st.markdown(f"""
             <div style='background: #1a1a2e; padding: 20px; border-radius: 10px; border: 1px solid #2ecc71;'>
-                <h4 style='color: #2ecc71;'>Informations importantes</h4>
+                <h4 style='color: #2ecc71;'>Informations</h4>
                 <p><strong style='color:#aaa;'>Montant :</strong> <span style='color:#00d4ff;font-weight:700;'>{st.session_state.montant_virement}€</span></p>
                 <p><strong style='color:#aaa;'>Offre :</strong> <span style='color:#FFD700;'>{st.session_state.offre_virement}</span></p>
                 <p><strong style='color:#aaa;'>Référence :</strong> <code style='background:#0a0a0f;color:#00d4ff;padding:2px 8px;border-radius:4px;'>{ref}</code></p>
                 <p><strong style='color:#aaa;'>Email :</strong> <span style='color:white;'>tech.contactinformatique@proton.me</span></p>
-                <p style='color: #e74c3c; font-weight:700;'>⚠️ Indiquez la référence dans le libellé</p>
+                <p style='color: #e74c3c; font-weight:700;'>⚠️ Indiquez la référence</p>
             </div>
             """, unsafe_allow_html=True)
-
-        st.info(f"""
-        **📋 Résumé du virement :**
-        - Montant : {st.session_state.montant_virement}€
-        - Offre : {st.session_state.offre_virement}
-        - Référence : {ref}
-        - Email : tech.contactinformatique@proton.me
-        - Délai : 24-48h ouvrés
-        """)
-        st.warning("⏳ Après le virement, votre compte sera activé sous 24-48h ouvrés. Un email de confirmation vous sera envoyé.")
-
-# ==================================================
-# PAGE OFFRES
-# ==================================================
+        st.info(f"**Résumé :** {st.session_state.montant_virement}€ - {st.session_state.offre_virement} - Réf: {ref}")
+        st.warning("⏳ Activation sous 24-48h ouvrés.")
 
 def page_offres():
-    st.markdown(
-        '<p style="color:#FFD700; font-size:36px; font-weight:700; text-align:center;">📋 Nos Offres</p>',
-        unsafe_allow_html=True)
+    st.markdown('<p style="color:#FFD700; font-size:36px; font-weight:700; text-align:center;">📋 Nos Offres</p>', unsafe_allow_html=True)
     st.markdown("---")
-
     col1, col2, col3 = st.columns(3)
-
     with col1:
         st.markdown("""
         <div style='background: #1a1a2e; padding: 20px; border-radius: 15px; border: 1px solid #2a2a4a; text-align: center;'>
@@ -547,7 +461,6 @@ def page_offres():
             <span style='background: #2a2a4a; padding: 8px 20px; border-radius: 50px; color: #aaa;'>Actuel</span>
         </div>
         """, unsafe_allow_html=True)
-
     with col2:
         st.markdown("""
         <div style='background: #1a1a2e; padding: 20px; border-radius: 15px; border: 2px solid #FFD700; text-align: center;'>
@@ -568,7 +481,6 @@ def page_offres():
             st.session_state.page = "💳 Virement"
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
-
     with col3:
         st.markdown("""
         <div style='background: #1a1a2e; padding: 20px; border-radius: 15px; border: 2px solid #9B59B6; text-align: center;'>
@@ -590,36 +502,24 @@ def page_offres():
             st.session_state.page = "💳 Virement"
             st.rerun()
         st.markdown("</div>", unsafe_allow_html=True)
-
-    st.markdown("---")
-    st.info("💡 Les offres Pro et Business sont **sans engagement** et peuvent être résiliées à tout moment.")
-
-# ==================================================
-# PAGE LICENCE
-# ==================================================
+    st.info("💡 Offres sans engagement.")
 
 def page_licence():
-    st.markdown(
-        '<p style="color:#FFD700; font-size:36px; font-weight:700; text-align:center;">📄 Licence et Mentions légales</p>',
-        unsafe_allow_html=True)
+    st.markdown('<p style="color:#FFD700; font-size:36px; font-weight:700; text-align:center;">📄 Licence et Mentions légales</p>', unsafe_allow_html=True)
     st.markdown("---")
-
     st.markdown("""
     ### 📌 Propriété intellectuelle
-    - Tous les droits de propriété intellectuelle sur le logiciel **Assistant IT Pro** appartiennent à **IT Pro Solutions**.
-    - Toute reproduction, modification ou distribution sans autorisation est interdite.
+    - Tous droits réservés à **IT Pro Solutions**.
+    - Reproduction interdite.
 
     ### 🔒 Protection des données
-    - Les données utilisateur sont stockées de manière sécurisée et ne sont jamais partagées avec des tiers.
-    - Conformément au RGPD, vous pouvez demander la suppression de vos données à tout moment.
+    - Conforme RGPD.
 
     ### 💰 Paiements
-    - Les paiements sont traités par virement bancaire. Aucune carte bancaire n'est stockée sur nos serveurs.
-    - Les abonnements sont sans engagement et peuvent être résiliés en nous contactant.
+    - Par virement bancaire.
 
     ### 📞 Support
-    - Contact : tech.contactinformatique@proton.me
-    - Délai de réponse : 24-48h ouvrés
+    - tech.contactinformatique@proton.me
 
     ---
     *Version 2.0 – 2026*
@@ -640,48 +540,30 @@ def main():
         st.session_state.date_recherche = date.today()
         st.session_state.recherches_jour = 0
 
-    # ==================================================
-    # SIDEBAR
-    # ==================================================
-
+    # ===== SIDEBAR =====
     with st.sidebar:
         st.markdown("""
-        <style>
-            section[data-testid="stSidebar"] {
-                background-color: #1a1a2e !important;
-            }
-        </style>
+        <style> section[data-testid="stSidebar"] { background-color: #1a1a2e !important; } </style>
         """, unsafe_allow_html=True)
-        st.markdown('<p style="color:#1458; font-size:24px; font-weight:700; text-align:center;">💻 IT Pro</p>',
-                    unsafe_allow_html=True)
-        st.markdown('<p style="color:#AAAAAA; font-size:12px; text-align:center;">1000 diagnostics</p>',
-                    unsafe_allow_html=True)
+        st.markdown('<p style="color:#1458; font-size:24px; font-weight:700; text-align:center;">💻 IT Pro</p>', unsafe_allow_html=True)
+        st.markdown('<p style="color:#AAAAAA; font-size:12px; text-align:center;">1000 diagnostics</p>', unsafe_allow_html=True)
         st.markdown("---")
 
         if st.session_state.user:
             st.markdown(f'<p style="color:#FFFFFF;">👤 {st.session_state.user}</p>', unsafe_allow_html=True)
-
             plan = st.session_state.plan
             if plan == "business":
-                st.markdown(
-                    '<div style="background:#9B59B6; padding:12px; border-radius:10px; text-align:center;"><p style="color:white; font-weight:700; margin:0;">🏢 BUSINESS</p></div>',
-                    unsafe_allow_html=True)
+                st.markdown('<div style="background:#9B59B6; padding:12px; border-radius:10px; text-align:center;"><p style="color:white; font-weight:700; margin:0;">🏢 BUSINESS</p></div>', unsafe_allow_html=True)
             elif plan == "pro":
-                st.markdown(
-                    '<div style="background:#FFD700; padding:12px; border-radius:10px; text-align:center;"><p style="color:#0a0a0f; font-weight:700; margin:0;">🚀 PRO</p></div>',
-                    unsafe_allow_html=True)
+                st.markdown('<div style="background:#FFD700; padding:12px; border-radius:10px; text-align:center;"><p style="color:#0a0a0f; font-weight:700; margin:0;">🚀 PRO</p></div>', unsafe_allow_html=True)
             else:
-                st.markdown(
-                    '<div style="background:#FF6B6B; padding:12px; border-radius:10px; text-align:center;"><p style="color:white; font-weight:700; margin:0;">🆓 GRATUIT</p></div>',
-                    unsafe_allow_html=True)
+                st.markdown('<div style="background:#FF6B6B; padding:12px; border-radius:10px; text-align:center;"><p style="color:white; font-weight:700; margin:0;">🆓 GRATUIT</p></div>', unsafe_allow_html=True)
                 restant = max(0, 3 - st.session_state.recherches_jour)
                 st.markdown(f'<p style="color:#FFFFFF;">🔍 {restant} recherches restantes</p>', unsafe_allow_html=True)
                 st.progress(st.session_state.recherches_jour / 3)
-
             st.markdown("---")
             menu = ["🏠 Accueil", "📋 Offres", "💳 Virement", "📄 Licence"]
             st.session_state.page = st.radio("Navigation", menu, key="sidebar_menu")
-
             if st.button("🚪 Déconnexion", use_container_width=True):
                 st.session_state.user = None
                 st.session_state.premium = False
@@ -715,10 +597,7 @@ def main():
                     else:
                         st.error("❌ Email déjà utilisé")
 
-    # ==================================================
-    # GESTION DES PAGES
-    # ==================================================
-
+    # ===== GESTION DES PAGES =====
     if st.session_state.page == "📋 Offres":
         page_offres()
         return
@@ -729,20 +608,12 @@ def main():
         page_licence()
         return
 
-    # ==================================================
-    # ACCUEIL
-    # ==================================================
-
-    st.markdown(
-        '<p style="color:#00d4ff; font-size:48px; font-weight:900; text-align:center;">🔧 Assistant Dépannage IT</p>',
-        unsafe_allow_html=True)
-    st.markdown(
-        '<p style="color:#aaa; text-align:center; font-size:18px;">Par IT Pro Solutions - <span style="color:#FFD700;">150+ diagnostics</span></p>',
-        unsafe_allow_html=True)
+    # ===== ACCUEIL =====
+    st.markdown('<p style="color:#00d4ff; font-size:48px; font-weight:900; text-align:center;">🔧 Assistant Dépannage IT</p>', unsafe_allow_html=True)
+    st.markdown('<p style="color:#aaa; text-align:center; font-size:18px;">Par IT Pro Solutions - <span style="color:#FFD700;">150+ diagnostics</span></p>', unsafe_allow_html=True)
     st.markdown("---")
 
-    question = st.text_area("Décrivez votre problème :", height=100,
-                            placeholder="Ex: mon PC est lent, le wifi ne marche pas, erreur Windows...")
+    question = st.text_area("Décrivez votre problème :", height=100, placeholder="Ex: mon PC est lent, le wifi ne marche pas, erreur Windows...")
 
     col1, col2, col3 = st.columns([1, 2, 1])
     with col2:
@@ -769,45 +640,29 @@ def main():
                                 st.markdown(f"**Procédure:**\n{panne['procedure']}")
                                 if panne.get('questions'):
                                     st.info(f"❓ {panne['questions']}")
-
-                        # BOUTONS D'EXPORT
+                        # Exports
                         if st.session_state.plan in ["pro", "business"]:
                             st.markdown("---")
                             col_btn1, col_btn2 = st.columns(2)
                             with col_btn1:
                                 pdf_data = generer_pdf_resultats(results, question)
                                 if pdf_data:
-                                    st.download_button(
-                                        label="📄 Télécharger en PDF",
-                                        data=pdf_data,
-                                        file_name=f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                                        mime="application/pdf",
-                                        key="pdf_download"
-                                    )
+                                    st.download_button("📄 Télécharger en PDF", pdf_data, f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf", "application/pdf", key="pdf_download")
                                 else:
-                                    st.warning("Export PDF indisponible (bibliothèque manquante)")
+                                    st.warning("Export PDF indisponible")
                             with col_btn2:
                                 word_data = generer_word_resultats(results, question)
                                 if word_data:
-                                    st.download_button(
-                                        label="📝 Télécharger en Word",
-                                        data=word_data,
-                                        file_name=f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
-                                        mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                                        key="word_download"
-                                    )
+                                    st.download_button("📝 Télécharger en Word", word_data, f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx", "application/vnd.openxmlformats-officedocument.wordprocessingml.document", key="word_download")
                                 else:
-                                    st.warning("Export Word indisponible (bibliothèque manquante)")
+                                    st.warning("Export Word indisponible")
                         else:
-                            st.info("🔒 L'export PDF/Word est disponible uniquement pour les abonnés **Pro** et **Business**.")
+                            st.info("🔒 Export PDF/Word pour abonnés **Pro** et **Business**.")
                     else:
                         st.warning("😕 Aucun résultat trouvé")
 
     st.markdown("---")
-    st.markdown(
-        '<p style="text-align:center; color:#444; font-size:12px;">© 2026 <strong style="color:#FFD700;">IT Pro Solutions</strong> - Tous droits réservés</p>',
-        unsafe_allow_html=True)
+    st.markdown('<p style="text-align:center; color:#444; font-size:12px;">© 2026 <strong style="color:#FFD700;">IT Pro Solutions</strong> - Tous droits réservés</p>', unsafe_allow_html=True)
 
 if __name__ == "__main__":
     main()
-    
