@@ -1,38 +1,3 @@
-    -VanSchoor
-    moteur-de-recherche-IT
-
-Repository navigation
-
-    Code
-    Issues
-    Pull requests
-    Actions
-    Projects
-    Wiki
-    Security and quality
-    Insights
-    Settings
-
-Commit db70d0c
-Stephanie-VanSchoor
-Stephanie-VanSchoor
-authored
-yesterday
-Update moteurprobleme.py
-main
-
-1 parent 
-dfdb3d3
- commit 
-db70d0c
-
-1 file changed
-+31-32Lines changed: 31 additions & 32 deletions
- 
-‎moteurprobleme.py‎
-+31-32Lines changed: 31 additions & 32 deletions
-Original file line number	Diff line number	Diff line change
-@@ -1,3278 +1,3277 @@
 import streamlit as st
 import sqlite3
 import pandas as pd
@@ -66,6 +31,7 @@ st.markdown("""
     .stApp { background-color: #0a0a0f; }
     h1, h2, h3 { color: #00d4ff !important; }
     p, li, label { color: #ffffff !important; }
+
     .stButton > button {
         background: linear-gradient(135deg, #00d4ff 0%, #0077be 100%) !important;
         color: #0a0a0f !important;
@@ -78,6 +44,7 @@ st.markdown("""
         transform: scale(1.05) !important;
         box-shadow: 0 0 30px #00d4ff40 !important;
     }
+
     .stTextInput > div > div > input, .stTextArea > div > div > textarea {
         background: #1a1a2e !important;
         border: 2px solid #2a2a4a !important;
@@ -146,73 +113,80 @@ OFFRES = {
     }
 }
 
-# ==================================================
-# BASE DE DONNEES
-# ==================================================
-
 def connexion_db():
     return sqlite3.connect(DB)
+
 
 def creer_base():
     conn = connexion_db()
     cur = conn.cursor()
+
+
+    # Table pannes
     cur.execute("""
-                CREATE TABLE IF NOT EXISTS pannes
-                (
-                    id
-                    INTEGER
-                    PRIMARY
-                    KEY
-                    AUTOINCREMENT,
-                    titre
-                    TEXT,
-                    description
-                    TEXT,
-                    diagnostic
-                    TEXT,
-                    procedure
-                    TEXT,
-                    questions
-                    TEXT,
-                    categorie
-                    TEXT,
-                    niveau
-                    INTEGER,
-                    tags
-                    TEXT
-                )
-                """)
+        CREATE TABLE IF NOT EXISTS pannes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            titre TEXT,
+            description TEXT,
+            diagnostic TEXT,
+            procedure TEXT,
+            questions TEXT,
+            categorie TEXT,
+            niveau INTEGER,
+            tags TEXT
+        )
+    """)
+
+    # Table entreprises
     cur.execute("""
-                CREATE TABLE IF NOT EXISTS utilisateurs
-                (
-                    id
-                    INTEGER
-                    PRIMARY
-                    KEY
-                    AUTOINCREMENT,
-                    email
-                    TEXT
-                    UNIQUE,
-                    password
-                    TEXT,
-                    plan
-                    TEXT
-                    DEFAULT
-                    'gratuit',
-                    premium
-                    INTEGER
-                    DEFAULT
-                    0,
-                    recherches
-                    INTEGER
-                    DEFAULT
-                    0,
-                    date_inscription
-                    TEXT
-                )
-                """)
+        CREATE TABLE IF NOT EXISTS entreprises (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nom TEXT,
+            date_creation TEXT,
+            plan TEXT DEFAULT 'business'
+        )
+    """)
+
+    # Table utilisateurs (avec abonnement_expire_le)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS utilisateurs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT UNIQUE,
+            password TEXT,
+            plan TEXT DEFAULT 'gratuit',
+            premium INTEGER DEFAULT 0,
+            recherches INTEGER DEFAULT 0,
+            date_inscription TEXT,
+            entreprise_id INTEGER,
+            role TEXT DEFAULT 'membre',
+            abonnement_expire_le TEXT,
+            FOREIGN KEY (entreprise_id) REFERENCES entreprises (id)
+        )
+    """)
+
+    # Table invitations
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS invitations (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email TEXT,
+            token TEXT UNIQUE,
+            entreprise_id INTEGER,
+            date_creation TEXT,
+            expire_le TEXT,
+            FOREIGN KEY (entreprise_id) REFERENCES entreprises (id)
+        )
+    """)
+
     conn.commit()
+
+    # Pour les bases existantes
+    try:
+        cur.execute("ALTER TABLE utilisateurs ADD COLUMN abonnement_expire_le TEXT")
+    except:
+        pass
+
     conn.close()
+
 
 def remplir_base():
     conn = connexion_db()
@@ -220,8 +194,8 @@ def remplir_base():
     cur.execute("SELECT COUNT(*) FROM pannes")
     if cur.fetchone()[0] == 0:
         # Vos données ici (je les ai tronquées pour la lisibilité, mais gardez tout votre contenu)
-        donnees = [
-             # Windows - Installation
+        donnees = [  # j ai pris jusqu ici !!!!
+            # Windows - Installation
             ("Windows ne s'installe pas", "L'installation de Windows échoue",
              "Problème de clé USB ou de pilote manquant",
              "1- Vérifier la clé USB\n2- Désactiver Secure Boot\n3- Installer les pilotes manuellement",
@@ -2755,6 +2729,7 @@ def remplir_base():
     conn.commit()
     conn.close()
 
+
 # ==================================================
 # MOTEUR DE RECHERCHE
 # ==================================================
@@ -2788,6 +2763,7 @@ class RechercheIT:
 
         resultats.sort(key=lambda x: x[1], reverse=True)
         return resultats[:10]
+
 
 # ===================================================
 # FONCTIONS D'EXPORT DES RÉSULTATS
@@ -2887,38 +2863,68 @@ def generer_word_resultats(resultats, question):
 # ==================================================
 # AUTHENTIFICATION
 # ==================================================
-
-def inscription(email, password):
-    conn = connexion_db()
-    cur = conn.cursor()
-    try:
-        pwd = hashlib.sha256(password.encode()).hexdigest()
-        cur.execute(
-            "INSERT INTO utilisateurs (email, password, plan, premium, recherches, date_inscription) VALUES (?, ?, 'gratuit', 0, 0, ?)",
-            (email, pwd, date.today().isoformat())
-        )
-        conn.commit()
-        conn.close()
-        return True
-    except:
-        conn.close()
-        return False
-
 def connexion_utilisateur(email, password):
     conn = connexion_db()
     cur = conn.cursor()
     pwd = hashlib.sha256(password.encode()).hexdigest()
     cur.execute("SELECT * FROM utilisateurs WHERE email = ? AND password = ?", (email, pwd))
     user = cur.fetchone()
+
+    if user:
+        # Vérifier si l'abonnement a expiré (index 9 = abonnement_expire_le)
+        expire_le = user[9] if len(user) > 9 else None
+        if expire_le:
+            try:
+                date_expiration = datetime.fromisoformat(expire_le)
+                if datetime.now() > date_expiration:
+                    # L'abonnement a expiré -> rétrograder en gratuit
+                    cur.execute("""
+                        UPDATE utilisateurs 
+                        SET plan = 'gratuit', premium = 0, abonnement_expire_le = NULL 
+                        WHERE email = ?
+                    """, (email,))
+                    conn.commit()
+                    # Recharger l'utilisateur
+                    cur.execute("SELECT * FROM utilisateurs WHERE email = ? AND password = ?", (email, pwd))
+                    user = cur.fetchone()
+            except:
+                pass
+
     conn.close()
     return user
+
 
 def mise_a_jour_plan(email, plan):
     conn = connexion_db()
     cur = conn.cursor()
+
+    # 1. Mettre à jour le plan et premium de l'utilisateur
     cur.execute("UPDATE utilisateurs SET plan = ?, premium = 1 WHERE email = ?", (plan, email))
+
+    # 2. Si l'utilisateur passe à Business, créer une entreprise s'il n'en a pas
+    if plan == "business":
+        # Vérifier si l'utilisateur a déjà une entreprise
+        cur.execute("SELECT entreprise_id FROM utilisateurs WHERE email = ?", (email,))
+        result = cur.fetchone()
+
+        if result and result[0] is None:
+            # Créer une entreprise avec un nom par défaut
+            nom_entreprise = f"Entreprise de {email}"
+            cur.execute(
+                "INSERT INTO entreprises (nom, date_creation, plan) VALUES (?, ?, 'business')",
+                (nom_entreprise, date.today().isoformat())
+            )
+            entreprise_id = cur.lastrowid
+
+            # Assigner l'entreprise à l'utilisateur et le définir comme admin
+            cur.execute(
+                "UPDATE utilisateurs SET entreprise_id = ?, role = 'admin' WHERE email = ?",
+                (entreprise_id, email)
+            )
+
     conn.commit()
     conn.close()
+
 
 # ==================================================
 # PAGE VIREMENT BANCAIRE
@@ -3020,6 +3026,7 @@ def page_virement():
         st.warning(
             "⏳ Après le virement, votre compte sera activé sous 24-48h ouvrés. Un email de confirmation vous sera envoyé.")
 
+
 # ==================================================
 # PAGE OFFRES
 # ==================================================
@@ -3091,6 +3098,7 @@ def page_offres():
     st.markdown("---")
     st.info("💡 Les offres Pro et Business sont **sans engagement** et peuvent être résiliées à tout moment.")
 
+
 # ==================================================
 # PAGE LICENCE
 # ==================================================
@@ -3104,18 +3112,23 @@ def page_licence():
     ### 📌 Propriété intellectuelle
     - Tous les droits de propriété intellectuelle sur le logiciel **Assistant IT Pro** appartiennent à **IT Pro Solutions**.
     - Toute reproduction, modification ou distribution sans autorisation est interdite.
+
     ### 🔒 Protection des données
     - Les données utilisateur sont stockées de manière sécurisée et ne sont jamais partagées avec des tiers.
     - Conformément au RGPD, vous pouvez demander la suppression de vos données à tout moment.
+
     ### 💰 Paiements
     - Les paiements sont traités par virement bancaire. Aucune carte bancaire n'est stockée sur nos serveurs.
     - Les abonnements sont sans engagement et peuvent être résiliés en nous contactant.
+
     ### 📞 Support
     - Contact : tech.contactinformatique@proton.me
     - Délai de réponse : 24-48h ouvrés
+
     ---
     *Version 2.0 – 2026*
     """)
+
 
 # ==================================================
 # MAIN
@@ -3263,40 +3276,7 @@ def main():
                                 if panne.get('questions'):
                                     st.info(f"❓ {panne['questions']}")
 
-
-    # ========== BOUTONS D'EXPORT (RÉSERVÉS PRO/BUSINESS) ==========
-    if st.session_state.plan in ["pro", "business"]:
-        st.markdown("---")
-        col_btn1, col_btn2 = st.columns(2)
-        with col_btn1:
-            pdf_data = generer_pdf_resultats(results, question)
-            if pdf_data:
-                st.download_button(
-                    label="📄 Télécharger en PDF",
-                    data=pdf_data,
-                    file_name=f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf",
-                    mime="application/pdf",
-                    key="pdf_download"
-                )
-            else:
-                st.warning("Export PDF indisponible (bibliothèque manquante)")
-        with col_btn2:
-            word_data = generer_word_resultats(results, question)
-            if word_data:
-                st.download_button(
-                    label="📝 Télécharger en Word",
-                    data=word_data,
-                    file_name=f"resultats_{datetime.now().strftime('%Y%m%d_%H%M%S')}.docx",
-                    mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",
-                    key="word_download"
-                )
-            else:
-                st.warning("Export Word indisponible (bibliothèque manquante)")
-    else:
-        st.info("🔒 L'export PDF/Word est disponible uniquement pour les abonnés **Pro** et **Business**.")
-else:
-    st.warning("😕 Aucun résultat trouvé")
-    
+                        # ========== BOUTONS D'EXPORT (RÉSERVÉS PRO/BUSINESS) ==========
                         if st.session_state.plan in ["pro", "business"]:
                             st.markdown("---")
                             col_btn1, col_btn2 = st.columns(2)
@@ -3325,14 +3305,16 @@ else:
                                 else:
                                     st.warning("Export Word indisponible (bibliothèque manquante)")
                         else:
-                            st.info("🔒 L'export PDF/Word est disponible uniquement pour les abonnés **Pro** et **Business**.")
+                            st.info(
+                                "🔒 L'export PDF/Word est disponible uniquement pour les abonnés **Pro** et **Business**.")
                     else:
                         st.warning("😕 Aucun résultat trouvé")
-#####remplacement de bloc #####
+    #####remplacement de bloc #####
     st.markdown("---")
     st.markdown(
         '<p style="text-align:center; color:#444; font-size:12px;">© 2026 <strong style="color:#FFD700;">IT Pro Solutions</strong> - Tous droits réservés</p>',
         unsafe_allow_html=True)
+
 
 if __name__ == "__main__":
     main()
