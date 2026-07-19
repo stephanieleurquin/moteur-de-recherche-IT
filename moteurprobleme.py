@@ -192,13 +192,24 @@ def creer_base():
     
     conn.close()
 
-
 def remplir_base():
     conn = connexion_db()
-    if conn is None:  # ✅ AJOUTEZ CES 2 LIGNES
-        return        # ✅ 
+    if conn is None:  # 👈 AJOUTEZ ICI
+        return        # 👈 AJOUTEZ ICI
     cur = conn.cursor()
     cur.execute("SELECT COUNT(*) FROM pannes")
+    if cur.fetchone()[0] == 0:
+        # ... vos données ...
+        donnees = [  # 👈 VOS DONNÉES ICI
+            # ...
+        ]
+        cur.executemany(
+            "INSERT INTO pannes (titre, description, diagnostic, procedure, questions, categorie, niveau, tags) VALUES (?,?,?,?,?,?,?,?)",
+            donnees
+        )
+        conn.commit()
+    conn.close()
+
     # ...
         # Vos données ici (je les ai tronquées pour la lisibilité, mais gardez tout votre contenu)
         donnees = [# j ai pris jusqu ici !!!!
